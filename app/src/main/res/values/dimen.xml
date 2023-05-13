@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="developer_option_dialog_margin_start">8dp</dimen>
+    <dimen name="developer_option_dialog_margin_top">8dp</dimen>
+    <dimen name="developer_option_dialog_min_height">48dp</dimen>
+    <dimen name="developer_option_dialog_padding_start">16dp</dimen>
+</resources>

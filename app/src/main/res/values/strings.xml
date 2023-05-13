@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">ExtA2DP</string>
+    <string name="description">Add new A2DP audio codecs</string>
+
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Playback Quality -->
+    <string name="bluetooth_select_a2dp_codec_lhdc_playback_quality">Bluetooth Audio LHDC Codec: Playback Quality</string>
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Codec: LHDC Playback Quality -->
+    <string name="bluetooth_select_a2dp_codec_lhdc_playback_quality_dialog_title">Select Bluetooth Audio LHDC Codec:\u000APlayback Quality</string>
+
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Low Latency -->
+    <string name="bluetooth_select_a2dp_codec_lhdc_latency">Bluetooth Audio LHDC Codec: Low Latency</string>
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Codec: LHDC Low Latency -->
+    <string name="bluetooth_select_a2dp_codec_lhdc_latency_dialog_title">Select Bluetooth Audio LHDC Codec:\u000ALatency</string>
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Codec: LHDC Low Latency Summary -->
+    <string name="bluetooth_select_a2dp_codec_lhdc_latency_summary">LHDC Codec:\u000ALow Latency</string>
+
+    <!-- UI debug setting: Select Bluetooth Audio LHDC AR effect -->
+    <string name="bluetooth_enable_a2dp_codec_lhdc_ar_effect">Enable LHDC 3DAR Effect</string>
+    <!-- UI debug setting: Select Bluetooth Audio LHDC AR effect: LHDC AR Audio -->
+    <string name="bluetooth_enable_a2dp_codec_lhdc_ar_effect_dialog_title">Select Bluetooth Audio LHDC Codec:\u000AAR Audio</string>
+
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Lossless -->
+    <string name="bluetooth_enable_a2dp_codec_lhdc_lossless">Enable LHDC Lossless</string>
+    <!-- UI debug setting: Select Bluetooth Audio LHDC Lossless: LHDC Lossless Audio -->
+    <string name="bluetooth_enable_a2dp_codec_lhdc_lossless_dialog_title">Select Bluetooth Audio LHDC Codec:\u000ALossless Audio</string>
+    <string name="bluetooth_select_a2dp_codec_type_help_info">Gray-out means not supported by phone or headset</string>
+    <string name="bluetooth_select_a2dp_codec_streaming_label">Streaming: %1$s</string>
+</resources>

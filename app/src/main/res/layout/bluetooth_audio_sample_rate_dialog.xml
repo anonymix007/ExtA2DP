@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RadioGroup xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bluetooth_audio_sample_rate_radio_group"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="@dimen/developer_option_dialog_margin_start">
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_default"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_441"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_480"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_882"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_960"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_1764"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+
+    <include
+        android:id="@+id/bluetooth_audio_sample_rate_1920"
+        layout="@layout/preference_widget_dialog_radiobutton" />
+</RadioGroup>
