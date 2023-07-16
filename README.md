@@ -3,13 +3,17 @@ This is the [LSPosed](https://github.com/LSPosed/LSPosed) module to add A2DP cod
 
 ## Supported Versions
 Android 13
-LSPosed v1.8.6 (6894)
 
+LSPosed v1.8.6 (6940)
+
+## Hardware requirements
+Relatively fresh Snapdragon SoC, I've only tested on 8 Gen 2.
 
 ## TODO
 - [x] UI in com.android.settings
 - [x] Logic in com.android.bluetooth
 - [x] Logic in native code
+- [ ] Fix codec quality selection
 - [x] bt_adv_audio-related problems (done, but see next)
 - [ ] Fix LE Audio (depends on bt_adv_audio)
 
