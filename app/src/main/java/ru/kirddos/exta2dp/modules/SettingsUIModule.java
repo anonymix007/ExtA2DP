@@ -94,19 +94,17 @@ public class SettingsUIModule extends XposedModule {
                 int type = callback.getArg(0);
                 String name;
                 //log(TAG + " BluetoothCodecConfig: getCodecName");
-                switch (type) {
-                    case SOURCE_CODEC_TYPE_LHDCV2:
-                        name = "LHDC V2";
-                        break;
-                    case SOURCE_CODEC_TYPE_LHDCV3:
-                        name = "LHDC V3";
-                        break;
-                    case SOURCE_CODEC_TYPE_LHDCV5:
-                        name = "LHDC V5";
-                        break;
-                    default:
-                        return;
+
+                if (type == SOURCE_CODEC_TYPE_LHDCV2) {
+                    name = "LHDC V2";
+                } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
+                    name = "LHDC V3";
+                } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
+                    name = "LHDC V5";
+                } else {
+                    return;
                 }
+
                 callback.returnAndSkip(name);
             });
         } catch (ClassNotFoundException | NoSuchMethodException | NullPointerException e) {
@@ -452,17 +450,15 @@ public class SettingsUIModule extends XposedModule {
                 try {
                     int type = callback.getArg(0);
                     int index = 0;
-                    switch (type) {
-                        case SOURCE_CODEC_TYPE_LHDCV2:
-                            index = 8;
-                            break;
-                        case SOURCE_CODEC_TYPE_LHDCV3:
-                            index = 9;
-                            break;
-                        case SOURCE_CODEC_TYPE_LHDCV5:
-                            index = 10;
-                            break;
+
+                    if (type == SOURCE_CODEC_TYPE_LHDCV2) {
+                        index = 8;
+                    } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
+                        index = 9;
+                    } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
+                        index = 10;
                     }
+
                     log(TAG + " Hooked BluetoothCodecDialogPreferenceController.convertCfgToBtnIndex: type = " + type + ", index = " + index);
 
                     if (index != 0) { // Handle LHDC 2/3/4/5 only

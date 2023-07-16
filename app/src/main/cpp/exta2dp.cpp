@@ -9,7 +9,7 @@
 #include "lsp_native.h"
 #include "bluetooth.h"
 #include "bluetooth_callbacks_glue.h"
-#include "bt_adv_audio.h"
+#include "bluetooth_a2dp_glue.h"
 
 #define TAG "BluetoothAppModuleNative"
 
@@ -118,13 +118,16 @@ static int glue_init(bt_callbacks_t *callbacks, bool guest_mode,
 
 static const void *glue_get_profile_interface(const char *name) {
     const void *result = exta2dp_get_profile_interface(name);
-
     if (original_callbacks.fresh != nullptr && result == nullptr) {
-        // This might be bt_adv_audio profile, let's use dummy implementations here
-        //return get_dummy_external_profile_interface(name);
-        __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: get %s", __func__, name);
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: %s from bt_adv_audio is not available", __func__, name);
         //return original_interface->get_profile_interface(name);
-        return get_dummy_external_profile_interface(name);
+        return nullptr;
+    }
+
+    if (!strcmp(name, BT_PROFILE_ADVANCED_AUDIO_ID)) {
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: Applying A2DP glue for changing ids", __func__);
+        original_a2dp_interface = (const btav_source_interface_t *) result;
+        return &glue_a2dp_interface;
     }
     return result;
 }
@@ -202,7 +205,6 @@ static void on_library_loaded(const char *name, void *handle) {
 #ifdef DEBUG
     __android_log_print(ANDROID_LOG_DEBUG, TAG, "Library %s loaded at %p", name, handle);
 #endif
-
     if (ends_with(name, "libbluetooth_qti_jni.so")) {
         __android_log_print(ANDROID_LOG_DEBUG, TAG,
                             "Hooking libbluetooth_qti_jni... Well, kind of");
@@ -214,6 +216,28 @@ static void on_library_loaded(const char *name, void *handle) {
     name_to_handle.insert(std::make_pair(name, handle));
 }
 
+extern "C"
+[[gnu::visibility("default")]] [[gnu::used]]
+void Java_ru_kirddos_exta2dp_modules_BluetoothAppModule_setCodecIds(JNIEnv *env, jobject thiz,
+                                                               jintArray codecIds) {
+    jsize length = 0;
+
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: Set codec IDs...", __func__);
+    jint *codec_ids = env->GetIntArrayElements(codecIds, nullptr);
+
+    if ((length = env->GetArrayLength(codecIds)) == BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX) {
+        for (int i = 0; i < BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX; i++) {
+            codec_indices[i] = codec_ids[i];
+            __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: Setting codec %s stack ID %d to %d", __func__,
+                                codec_index_to_name((btav_a2dp_codec_index_t) i).c_str(), i, codec_ids[i]);
+        }
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: Setting codec IDs failed: incorrect length %d", __func__, length);
+    }
+    env->ReleaseIntArrayElements(codecIds, codec_ids, JNI_ABORT);
+}
+
+
 extern "C" [[gnu::visibility("default")]] [[gnu::used]]
 jint JNI_OnLoad(JavaVM *jvm, void *) {
     JNIEnv *env = nullptr;
@@ -221,6 +245,7 @@ jint JNI_OnLoad(JavaVM *jvm, void *) {
     __android_log_print(ANDROID_LOG_DEBUG, TAG, "JNI_OnLoad");
     return JNI_VERSION_1_6;
 }
+
 
 extern "C" [[gnu::visibility("default")]] [[gnu::used]]
 NativeOnModuleLoaded native_init(const NativeAPIEntries *entries) {

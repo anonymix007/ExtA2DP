@@ -29,6 +29,21 @@ public class BluetoothAppModule extends XposedModule {
         log(TAG + ": " + param.getProcessName());
     }
 
+    protected static final int[] CODEC_IDS = {
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_AAC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX_HD,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LDAC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LC3,
+            SOURCE_CODEC_TYPE_OPUS,
+            SOURCE_CODEC_TYPE_APTX_ADAPTIVE,
+            SOURCE_CODEC_TYPE_APTX_TWSP,
+            SOURCE_CODEC_TYPE_LHDCV3,
+            SOURCE_CODEC_TYPE_LHDCV2,
+            SOURCE_CODEC_TYPE_LHDCV5,
+    };
+
     @SuppressLint("DiscouragedPrivateApi")
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
@@ -50,18 +65,14 @@ public class BluetoothAppModule extends XposedModule {
                 int type = callback.getArg(0);
                 String name;
                 //log(TAG + " BluetoothCodecConfig: getCodecName");
-                switch (type) {
-                    case SOURCE_CODEC_TYPE_LHDCV2:
-                        name = "LHDC V2";
-                        break;
-                    case SOURCE_CODEC_TYPE_LHDCV3:
-                        name = "LHDC V3";
-                        break;
-                    case SOURCE_CODEC_TYPE_LHDCV5:
-                        name = "LHDC V5";
-                        break;
-                    default:
-                        return;
+                if (type == SOURCE_CODEC_TYPE_LHDCV2) {
+                    name = "LHDC V2";
+                } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
+                    name = "LHDC V3";
+                } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
+                    name = "LHDC V5";
+                } else {
+                    return;
                 }
                 callback.returnAndSkip(name);
             });
@@ -74,6 +85,8 @@ public class BluetoothAppModule extends XposedModule {
         log("In Bluetooth!");
 
         System.loadLibrary("exta2dp");
+
+        setCodecIds(CODEC_IDS);
 
         try {
             Class<?> a2dpCodecConfig = param.getClassLoader().loadClass("com.android.bluetooth.a2dp.A2dpCodecConfig");
@@ -309,4 +322,6 @@ public class BluetoothAppModule extends XposedModule {
         }
     }
 
+
+    native void setCodecIds(int[] codecIds);
 }

@@ -22,7 +22,7 @@ add_library( # Sets the name of the library.
              SHARED
 
              # Provides a relative path to your source file(s).
-             exta2dp.cpp bluetooth_callbacks_glue.cpp bt_adv_audio.cpp)
+             exta2dp.cpp bluetooth_callbacks_glue.cpp bluetooth_a2dp_glue.cpp)
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library

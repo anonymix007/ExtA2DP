@@ -28,6 +28,7 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
         return codecName;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return "SourceCodecType{" +
@@ -42,7 +43,6 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
     }
 
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     public static SourceCodecType[] getSourceCodecTypes() {
         TreeSet<SourceCodecType> types = new TreeSet<>();
         Field[] fields = BluetoothCodecConfig.class.getDeclaredFields();
@@ -61,15 +61,33 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
         return types.toArray(new SourceCodecType[0]);
     }
 
-    public static int getIdByName(String name) {
+    public static int getIdByName(String name, int default_id) {
         SourceCodecType[] codecTypes = getSourceCodecTypes();
-
         for (SourceCodecType codec: codecTypes) {
-            if (codec.codecName.equals(name)) return codec.id;
+            if (codec.codecName.endsWith(name)) return codec.id;
         }
-        return 0;
+        return default_id;
     }
 
+    public static int getQVA() {
+        Field[] fields = BluetoothCodecConfig.class.getDeclaredFields();
+        for (Field f: fields) {
+            if (f.getType().isAssignableFrom(int.class) && isPublicStaticFinal(f.getModifiers())
+                    && f.getName().equals("SOURCE_QVA_CODEC_TYPE_MAX")) {
+                f.setAccessible(true);
+                try {
+                    return f.getInt(null);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return 12;
+    }
+
+    public static int getIdByName(String name) {
+        return getIdByName(name, 0);
+    }
 
     private static boolean isPublicStaticFinal(int mod) {
         int mask = Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL;

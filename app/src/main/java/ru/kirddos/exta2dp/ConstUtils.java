@@ -1,9 +1,15 @@
 package ru.kirddos.exta2dp;
 
 public class ConstUtils {
-    public static final int SOURCE_CODEC_TYPE_LHDCV2 = 9;//42;
-    public static final int SOURCE_CODEC_TYPE_LHDCV3 = 10;//43;
-    public static final int SOURCE_CODEC_TYPE_LHDCV5 = 11;//44;
+    public static final int SOURCE_QVA_CODEC_TYPE_MAX = SourceCodecType.getQVA();
+
+
+    public static final int SOURCE_CODEC_TYPE_LHDCV2 = SourceCodecType.getIdByName("LHDCV2", 10);
+    public static final int SOURCE_CODEC_TYPE_LHDCV3 = SourceCodecType.getIdByName("LHDCV3", 9);
+    public static final int SOURCE_CODEC_TYPE_LHDCV5 = SourceCodecType.getIdByName("LHDCV5", 11);
+    public static final int SOURCE_CODEC_TYPE_OPUS = SourceCodecType.getIdByName("OPUS", SOURCE_QVA_CODEC_TYPE_MAX);
+
+
 
     public static final int SOURCE_CODEC_TYPE_APTX_TWSP = SourceCodecType.getIdByName("APTX_TWSP");
     public static final int SOURCE_CODEC_TYPE_APTX_ADAPTIVE = SourceCodecType.getIdByName("APTX_ADAPTIVE");

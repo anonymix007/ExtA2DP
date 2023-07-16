@@ -66,11 +66,8 @@ public class SystemFrameworkModule extends XposedModule {
 
                     log(TAG + " bluetoothCodecToAudioFormat: " + btCodec + "->" + (btCodec >= SOURCE_CODEC_TYPE_LHDCV2 ? "AUDIO_FORMAT_LHDC" : "default"));
 
-                    switch (btCodec) {
-                        case SOURCE_CODEC_TYPE_LHDCV2:
-                        case SOURCE_CODEC_TYPE_LHDCV3:
-                        case SOURCE_CODEC_TYPE_LHDCV5:
-                            callback.returnAndSkip(AUDIO_FORMAT_LHDC/*AUDIO_FORMAT_LHDC*/);
+                    if (btCodec == SOURCE_CODEC_TYPE_LHDCV2 || btCodec == SOURCE_CODEC_TYPE_LHDCV3 || btCodec == SOURCE_CODEC_TYPE_LHDCV5) {
+                        callback.returnAndSkip(AUDIO_FORMAT_LHDC/*AUDIO_FORMAT_LHDC*/);
                     }
                 } catch (NullPointerException e) {
                     log(TAG + " Exception: ", e);
