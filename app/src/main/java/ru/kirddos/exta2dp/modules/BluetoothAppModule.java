@@ -1,7 +1,6 @@
 package ru.kirddos.exta2dp.modules;
 
 import static ru.kirddos.exta2dp.ConstUtils.*;
-import ru.kirddos.exta2dp.R;
 import ru.kirddos.exta2dp.SourceCodecType;
 
 import androidx.annotation.NonNull;
@@ -9,7 +8,6 @@ import androidx.annotation.RequiresApi;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 import android.bluetooth.BluetoothCodecStatus;
-import android.content.Context;
 import android.os.Build;
 
 import java.lang.reflect.*;
@@ -21,8 +19,8 @@ import io.github.libxposed.api.XposedModule;
 
 @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
 public class BluetoothAppModule extends XposedModule {
-    private final String TAG = "BluetoothAppModule";
-    private final String BLUETOOTH_PACKAGE = "com.android.bluetooth";
+    private static final String TAG = "BluetoothAppModule";
+    private static final String BLUETOOTH_PACKAGE = "com.android.bluetooth";
 
     public BluetoothAppModule(@NonNull XposedContext base, @NonNull ModuleLoadedParam param) {
         super(base, param);
@@ -44,7 +42,7 @@ public class BluetoothAppModule extends XposedModule {
             SOURCE_CODEC_TYPE_LHDCV5,
     };
 
-    @SuppressLint("DiscouragedPrivateApi")
+    @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi"})
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
         super.onPackageLoaded(param);
@@ -58,6 +56,28 @@ public class BluetoothAppModule extends XposedModule {
 
         try {
             Class<?> btCodecConfig = param.getClassLoader().loadClass("android.bluetooth.BluetoothCodecConfig");
+
+            Method sameCodecSpecificParameters = btCodecConfig.getDeclaredMethod("sameCodecSpecificParameters", btCodecConfig);
+
+            hookAfter(sameCodecSpecificParameters, callback -> {
+                try {
+                    boolean same = (boolean) callback.getResult();
+                    if (same) {
+                        BluetoothCodecConfig thiz = (BluetoothCodecConfig) callback.getThis();
+                        BluetoothCodecConfig other = (BluetoothCodecConfig) callback.getArgs()[0];
+                        int type = thiz.getCodecType();
+                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
+                            if (thiz.getCodecSpecific1() != other.getCodecSpecific1() ||
+                                    thiz.getCodecSpecific2() != other.getCodecSpecific2() ||
+                                    thiz.getCodecSpecific3() != other.getCodecSpecific3()) {
+                                callback.setResult(false);
+                            }
+                        }
+                    }
+                } catch (NullPointerException e) {
+                    log(TAG + " Exception: ", e);
+                }
+            });
 
             Method getCodecName = btCodecConfig.getDeclaredMethod("getCodecName", int.class);
             hookBefore(getCodecName, callback -> {

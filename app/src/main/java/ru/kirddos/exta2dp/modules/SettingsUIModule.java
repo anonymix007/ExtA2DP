@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothCodecConfig;
 import android.bluetooth.BluetoothCodecStatus;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -19,7 +18,6 @@ import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-
 import androidx.annotation.NonNull;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -27,8 +25,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import io.github.libxposed.api.XposedContext;
 import io.github.libxposed.api.XposedModule;
@@ -49,9 +45,9 @@ public class SettingsUIModule extends XposedModule {
             BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX,
             BluetoothCodecConfig.SOURCE_CODEC_TYPE_AAC,
             BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC};
-    private final String TAG = "SettingsUIModule";
+    private static final String TAG = "SettingsUIModule";
 
-    private final String SETTINGS_PACKAGE = "com.android.settings";
+    private static final String SETTINGS_PACKAGE = "com.android.settings";
 
     public SettingsUIModule(@NonNull XposedContext base, @NonNull ModuleLoadedParam param) {
         super(base, param);
@@ -71,19 +67,7 @@ public class SettingsUIModule extends XposedModule {
         log("----------");
 
         if (!param.getPackageName().equals(SETTINGS_PACKAGE) || !param.isFirstPackage()) return;
-
         log("In settings!");
-
-        Matcher matcher = Pattern.compile("(?<=module=).*?(?=,)").matcher(getClass().getClassLoader().toString());
-
-        String modulePath = null;
-        if (matcher.find()) {
-            modulePath = matcher.group().trim();
-        }
-
-        String finalModulePath = modulePath;
-
-        //DoubleParentClassLoader coolLoader = new DoubleParentClassLoader(modulePath, getClass().getClassLoader().getParent(), param.getClassLoader());
 
         try {
             Class<?> btCodecConfig = param.getClassLoader().loadClass("android.bluetooth.BluetoothCodecConfig");
@@ -507,6 +491,7 @@ public class SettingsUIModule extends XposedModule {
                     for (int i = 0; i < stringArray.length; i++) {
                         mRadioButtonStrings.add(stringArray[i]);
                     }
+                    log("a2dp_codec_sample_rate_titles array: " + Arrays.toString(stringArray));
                     stringArray = getResources().getStringArray(
                             R.array.bluetooth_a2dp_codec_sample_rate_summaries);
                     for (int i = 0; i < stringArray.length; i++) {
@@ -515,8 +500,6 @@ public class SettingsUIModule extends XposedModule {
                     radioButtonIds.set(callback.getThis(), mRadioButtonIds);
                     radioButtonStrings.set(callback.getThis(), mRadioButtonStrings);
                     summaryStrings.set(callback.getThis(), mSummaryStrings);
-
-                    log("a2dp_codec_sample_rate_titles array: " + Arrays.toString(stringArray));
                     log("a2dp_codec_sample_rate_summaries array: " + Arrays.toString(stringArray));
                 } catch (IllegalAccessException | NullPointerException e) {
                     log("Exception: ", e);
@@ -525,21 +508,8 @@ public class SettingsUIModule extends XposedModule {
             });
             Class<?> ldacQualityPref = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothQualityDialogPreference");
 
-            //Field mDialogLayoutResId = recursiveFindField(ldacQualityPref, "mDialogLayoutResId");
-
-
             getRadioButtonGroupId = ldacQualityPref.getDeclaredMethod("getRadioButtonGroupId");
             initialize = ldacQualityPref.getDeclaredMethod("initialize", Context.class);;
-            /*hookBefore(getRadioButtonGroupId, callback -> {
-                try {
-                    int resId = (int) mDialogLayoutResId.get(callback.getThis());
-                    if (resId == R.layout.bluetooth_lhdc_audio_quality_dialog) {
-                        callback.returnAndSkip(R.id.bluetooth_lhdc_audio_quality_radio_group);
-                    }
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-            });*/
 
             Method getKey = recursiveFindMethod(ldacQualityPref,"getKey");
 
@@ -597,19 +567,13 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " Exception: ", e);
         }
 
-        /*try {
-            Class<?>
-        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException | NullPointerException |
-                 IllegalAccessException e) {
-            log(TAG + " Exception: ", e);
-        }*/
-
         try{
             Class<?> devSettingsDashboardFragment = param.getClassLoader().loadClass("com.android.settings.development.DevelopmentSettingsDashboardFragment");
 
             Class<?> lifecycleClass = param.getClassLoader().loadClass("com.android.settingslib.core.lifecycle.Lifecycle");
-            //Class<?> btA2dpConfigStore = param.getClassLoader().loadClass("com.android.settings.development.BluetoothA2dpConfigStore");
-            Field mBluetoothA2dpConfigStore = devSettingsDashboardFragment.getDeclaredField("mBluetoothA2dpConfigStore");
+
+            Class<?> btCodecDialogPreferenceController = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.AbstractBluetoothDialogPreferenceController");
+            Field mBluetoothA2dpConfigStore = btCodecDialogPreferenceController.getDeclaredField("mBluetoothA2dpConfigStore");
             Field mPreferenceControllers = devSettingsDashboardFragment.getDeclaredField("mPreferenceControllers");
             mBluetoothA2dpConfigStore.setAccessible(true);
             mPreferenceControllers.setAccessible(true);
@@ -630,9 +594,6 @@ public class SettingsUIModule extends XposedModule {
             Method getPreferenceCount = recursiveFindMethod(preferenceScreenClass, "getPreferenceCount");
             Method getTitle = recursiveFindMethod(preferenceScreenClass, "getTitle");
             Method setTitle = recursiveFindMethod(preferenceScreenClass, "setTitle", CharSequence.class);
-
-
-            //param.
 
             //Class<?> abstractBtPrefController = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.AbstractBluetoothDialogPreferenceController");
             //Class<?> btLHDCQualityPrefController = coolLoader.loadClass("ru.kirddos.exta2dp.modules.ui.BluetoothLHDCQualityDialogPreferenceController");

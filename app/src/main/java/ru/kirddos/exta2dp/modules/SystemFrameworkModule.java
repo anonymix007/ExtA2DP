@@ -14,33 +14,12 @@ import androidx.annotation.NonNull;
 import static ru.kirddos.exta2dp.ConstUtils.*;
 
 public class SystemFrameworkModule extends XposedModule {
-    private final String TAG = "SystemFrameworkModule";
+    private static final String TAG = "SystemFrameworkModule";
 
     public SystemFrameworkModule(@NonNull XposedContext base, @NonNull ModuleLoadedParam param) {
         super(base, param);
         log(TAG + ": " + param.getProcessName());
     }
-
-    /*@SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi", "PrivateApi"})
-    @Override
-    public void onPackageLoaded(PackageLoadedParam param) {
-        super.onPackageLoaded(param);
-        log("onPackageLoaded: " + param.getPackageName());
-        log("main classloader is " + this.getClassLoader());
-        log("param classloader is " + param.getClassLoader());
-        log("class classloader is " + SourceCodecType.class.getClassLoader());
-        log("module apk path: " + this.getPackageCodePath());
-        log("pid/tid: " + android.os.Process.myPid() + " " + android.os.Process.myTid());
-        log("----------");
-
-        if (!(param.getPackageName().equals("android") || param.getPackageName().equals("system")) || !param.isFirstPackage()) return;
-
-        log("In android/system");
-
-
-        // TODO: AUDIO_FORMAT_LHDC in bluetoothCodecToAudioFormat (android.media.AudioSystem)
-    }*/
-
     @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi", "PrivateApi"})
     @Override
     public void onSystemServerLoaded(@NonNull SystemServerLoadedParam param) {
