@@ -7,6 +7,7 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+.idea/inspectionProfiles/
 .idea/vcs.xml
 .DS_Store
 /build
@@ -17,3 +18,4 @@ local.properties
 app/libs/
 so/
 magisk/
+logs/

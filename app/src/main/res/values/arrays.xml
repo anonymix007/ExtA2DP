@@ -13,6 +13,8 @@
         <item>Savitech® LHDC V2™</item>
         <item>Savitech® LHDC V3/V4™</item>
         <item>Savitech® LHDC-V™</item>
+        <item>LC3plus HR</item>
+        <item>FLAC</item>
     </string-array>
 
     <!-- Values for Bluetooth Audio Codec selection preference. -->
@@ -30,6 +32,8 @@
         <item>7</item>
         <item>8</item>
         <item>9</item>
+        <item>10</item>
+        <item>11</item>
     </string-array>
 
     <!-- Summaries for Bluetooth Audio Codec selection preference. [CHAR LIMIT=50]-->
@@ -45,6 +49,8 @@
         <item>Savitech® LHDC V2™</item>
         <item>Savitech® LHDC V3/V4™</item>
         <item>Savitech® LHDC-V™</item>
+        <item>LC3plus HR</item>
+        <item>FLAC</item>
     </string-array>
 
     <!-- Titles for Bluetooth Audio Codec Sample Rate selection preference. [CHAR LIMIT=50] -->

@@ -1,4 +1,6 @@
-com.android.bluetooth
-com.android.settings
 system
 android
+com.android.systemui
+com.android.settings
+com.android.bluetooth
+com.amrg.bluetooth_codec_converter

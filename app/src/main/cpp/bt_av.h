@@ -65,6 +65,8 @@ typedef enum {
   BTAV_A2DP_CODEC_INDEX_SOURCE_LHDCV3,
   BTAV_A2DP_CODEC_INDEX_SOURCE_LHDCV2,
   BTAV_A2DP_CODEC_INDEX_SOURCE_LHDCV5,
+  BTAV_A2DP_CODEC_INDEX_SOURCE_LC3PLUS_HR,
+  BTAV_A2DP_CODEC_INDEX_SOURCE_FLAC,
   BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX,
 
   BTAV_A2DP_CODEC_INDEX_SINK_MIN =
@@ -169,6 +171,10 @@ static inline std::string codec_index_to_name(btav_a2dp_codec_index_t codec_type
       return "LHDC V3";
     case BTAV_A2DP_CODEC_INDEX_SOURCE_LHDCV5:
       return "LHDC V5";
+    case BTAV_A2DP_CODEC_INDEX_SOURCE_LC3PLUS_HR:
+      return "LC3plus HR";
+    case BTAV_A2DP_CODEC_INDEX_SOURCE_FLAC:
+      return "FLAC";
     case BTAV_A2DP_CODEC_INDEX_MAX:
       return "Unknown(CODEC_INDEX_MAX)";
   }

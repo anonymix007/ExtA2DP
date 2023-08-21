@@ -4,11 +4,9 @@ import static ru.kirddos.exta2dp.ConstUtils.*;
 import ru.kirddos.exta2dp.SourceCodecType;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 import android.bluetooth.BluetoothCodecStatus;
-import android.os.Build;
 
 import java.lang.reflect.*;
 import java.util.ArrayList;
@@ -17,7 +15,6 @@ import java.util.Arrays;
 import io.github.libxposed.api.XposedContext;
 import io.github.libxposed.api.XposedModule;
 
-@RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
 public class BluetoothAppModule extends XposedModule {
     private static final String TAG = "BluetoothAppModule";
     private static final String BLUETOOTH_PACKAGE = "com.android.bluetooth";
@@ -40,9 +37,12 @@ public class BluetoothAppModule extends XposedModule {
             SOURCE_CODEC_TYPE_LHDCV3,
             SOURCE_CODEC_TYPE_LHDCV2,
             SOURCE_CODEC_TYPE_LHDCV5,
+            SOURCE_CODEC_TYPE_LC3PLUS_HR,
+            SOURCE_CODEC_TYPE_FLAC
     };
 
-    @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi"})
+    @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi", "PrivateApi"})
+    @SuppressWarnings({"NullableProblems", "ConstantConditions"})
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
         super.onPackageLoaded(param);
@@ -53,6 +53,16 @@ public class BluetoothAppModule extends XposedModule {
         log("module apk path: " + this.getPackageCodePath());
         log("pid/tid: " + android.os.Process.myPid() + " " + android.os.Process.myTid());
         log("----------");
+
+
+
+        if (!param.getPackageName().equals(BLUETOOTH_PACKAGE) || !param.isFirstPackage()) return;
+
+        log("In Bluetooth!");
+
+        System.loadLibrary("exta2dp");
+
+        setCodecIds(CODEC_IDS);
 
         try {
             Class<?> btCodecConfig = param.getClassLoader().loadClass("android.bluetooth.BluetoothCodecConfig");
@@ -66,10 +76,11 @@ public class BluetoothAppModule extends XposedModule {
                         BluetoothCodecConfig thiz = (BluetoothCodecConfig) callback.getThis();
                         BluetoothCodecConfig other = (BluetoothCodecConfig) callback.getArgs()[0];
                         int type = thiz.getCodecType();
-                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
+                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5 || type == SOURCE_CODEC_TYPE_LC3PLUS_HR || type == SOURCE_CODEC_TYPE_FLAC) {
                             if (thiz.getCodecSpecific1() != other.getCodecSpecific1() ||
                                     thiz.getCodecSpecific2() != other.getCodecSpecific2() ||
-                                    thiz.getCodecSpecific3() != other.getCodecSpecific3()) {
+                                    thiz.getCodecSpecific3() != other.getCodecSpecific3() ||
+                                    thiz.getCodecSpecific4() != other.getCodecSpecific4()) {
                                 callback.setResult(false);
                             }
                         }
@@ -78,35 +89,9 @@ public class BluetoothAppModule extends XposedModule {
                     log(TAG + " Exception: ", e);
                 }
             });
-
-            Method getCodecName = btCodecConfig.getDeclaredMethod("getCodecName", int.class);
-            hookBefore(getCodecName, callback -> {
-
-                int type = callback.getArg(0);
-                String name;
-                //log(TAG + " BluetoothCodecConfig: getCodecName");
-                if (type == SOURCE_CODEC_TYPE_LHDCV2) {
-                    name = "LHDC V2";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
-                    name = "LHDC V3";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
-                    name = "LHDC V5";
-                } else {
-                    return;
-                }
-                callback.returnAndSkip(name);
-            });
         } catch (ClassNotFoundException | NoSuchMethodException | NullPointerException e) {
             log(TAG + " btCodecConfig: ", e);
         }
-
-        if (!param.getPackageName().equals(BLUETOOTH_PACKAGE) || !param.isFirstPackage()) return;
-
-        log("In Bluetooth!");
-
-        System.loadLibrary("exta2dp");
-
-        setCodecIds(CODEC_IDS);
 
         try {
             Class<?> a2dpCodecConfig = param.getClassLoader().loadClass("com.android.bluetooth.a2dp.A2dpCodecConfig");
@@ -132,17 +117,21 @@ public class BluetoothAppModule extends XposedModule {
 
             hookBefore(processCodecConfigEvent, callback -> {
                 try {
-                    Object adapterService = getAdapterService.invoke(null);
-                    log(TAG + " processCodecConfigEvent: " + adapterService);
-                    Object vendorObj = mVendor.get(adapterService);
-                    boolean save = splitA2dpEnabled.getBoolean(vendorObj);
-                    log(TAG + " processCodecConfigEvent: splitA2dpEnabled = " + save);
-                    splitA2dpEnabled.set(vendorObj, false);
-                    log(TAG + " processCodecConfigEvent: splitA2dpEnabled = false, calling original method");
-                    callback.invokeOrigin();
-                    splitA2dpEnabled.set(vendorObj, save);
-                    log(TAG + " processCodecConfigEvent: restore splitA2dpEnabled");
-                    callback.returnAndSkip(null);
+                    BluetoothCodecStatus newCodecStatus = callback.getArg(0);
+                    int new_codec_type = newCodecStatus.getCodecConfig().getCodecType();
+                    if (new_codec_type >= SOURCE_CODEC_TYPE_LHDCV2) {
+                        Object adapterService = getAdapterService.invoke(null);
+                        log(TAG + " processCodecConfigEvent: " + adapterService);
+                        Object vendorObj = mVendor.get(adapterService);
+                        boolean save = splitA2dpEnabled.getBoolean(vendorObj);
+                        log(TAG + " processCodecConfigEvent: splitA2dpEnabled = " + save);
+                        splitA2dpEnabled.set(vendorObj, false);
+                        log(TAG + " processCodecConfigEvent: splitA2dpEnabled = false, calling original method");
+                        callback.invokeOrigin();
+                        splitA2dpEnabled.set(vendorObj, save);
+                        log(TAG + " processCodecConfigEvent: restore splitA2dpEnabled");
+                        callback.returnAndSkip(null);
+                    }
                 } catch (InvocationTargetException | IllegalAccessException e) {
                     log(TAG + " Exception: ", e);
                 }
@@ -164,7 +153,7 @@ public class BluetoothAppModule extends XposedModule {
                         return;
                     }
 
-                    BluetoothCodecConfig[] res = new BluetoothCodecConfig[pos + 3]; // LHDC 2, 3/4 and 5 for now
+                    BluetoothCodecConfig[] res = new BluetoothCodecConfig[pos + 5]; // LHDC 2, 3/4, 5 and LC3plus HR/FLAC for now
 
 
                     System.arraycopy(mCodecConfigPriorities, 0, res, 0, pos);
@@ -180,10 +169,13 @@ public class BluetoothAppModule extends XposedModule {
                         }
                     }
 
+                    //noinspection JavaReflectionMemberAccess
                     Constructor<BluetoothCodecConfig> newBluetoothCodecConfig = BluetoothCodecConfig.class.getDeclaredConstructor(int.class, int.class, int.class, int.class, int.class, long.class, long.class, long.class, long.class);
                     res[pos++] = newBluetoothCodecConfig.newInstance(SOURCE_CODEC_TYPE_LHDCV2, basePriority + 1, BluetoothCodecConfig.SAMPLE_RATE_NONE, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE, BluetoothCodecConfig.CHANNEL_MODE_NONE, 0 /* codecSpecific1 */, 0 /* codecSpecific2 */, 0 /* codecSpecific3 */, 0 /* codecSpecific4 */);
                     res[pos++] = newBluetoothCodecConfig.newInstance(SOURCE_CODEC_TYPE_LHDCV3, basePriority + 2, BluetoothCodecConfig.SAMPLE_RATE_NONE, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE, BluetoothCodecConfig.CHANNEL_MODE_NONE, 0 /* codecSpecific1 */, 0 /* codecSpecific2 */, 0 /* codecSpecific3 */, 0 /* codecSpecific4 */);
                     res[pos++] = newBluetoothCodecConfig.newInstance(SOURCE_CODEC_TYPE_LHDCV5, basePriority + 3, BluetoothCodecConfig.SAMPLE_RATE_NONE, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE, BluetoothCodecConfig.CHANNEL_MODE_NONE, 0 /* codecSpecific1 */, 0 /* codecSpecific2 */, 0 /* codecSpecific3 */, 0 /* codecSpecific4 */);
+                    res[pos++] = newBluetoothCodecConfig.newInstance(SOURCE_CODEC_TYPE_LC3PLUS_HR, basePriority + 4 /* -1 */, BluetoothCodecConfig.SAMPLE_RATE_NONE, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE, BluetoothCodecConfig.CHANNEL_MODE_NONE, 0 /* codecSpecific1 */, 0 /* codecSpecific2 */, 0 /* codecSpecific3 */, 0 /* codecSpecific4 */);
+                    res[pos++] = newBluetoothCodecConfig.newInstance(SOURCE_CODEC_TYPE_FLAC, basePriority + 5, BluetoothCodecConfig.SAMPLE_RATE_NONE, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE, BluetoothCodecConfig.CHANNEL_MODE_NONE, 0 /* codecSpecific1 */, 0 /* codecSpecific2 */, 0 /* codecSpecific3 */, 0 /* codecSpecific4 */);
 
                     log(TAG + " assignCodecConfigPriorities: " + Arrays.toString(res));
 
@@ -271,14 +263,14 @@ public class BluetoothAppModule extends XposedModule {
             hookAfter(processProfileServiceStateChanged, callback -> {
                 try {
                     Object adapter = adapterServiceThis.get(callback.getThis());
-                    ArrayList running = (ArrayList) mRunningProfiles.get(adapter);
-                    ArrayList registered = (ArrayList) mRegisteredProfiles.get(adapter);
+                    ArrayList<?> running = (ArrayList<?>) mRunningProfiles.get(adapter);
+                    ArrayList<?> registered = (ArrayList<?>) mRegisteredProfiles.get(adapter);
                     log(TAG + " processProfileServiceStateChanged: state " + callback.getArgs()[1] + ", running: " + running + ", registered: " + registered);
                     log(TAG + " processProfileServiceStateChanged: registered " + registered.size() + " running " + running.size());
                     Class<?> config = param.getClassLoader().loadClass("com.android.bluetooth.btservice.Config");
                     Method getSupportedProfiles = config.getDeclaredMethod("getSupportedProfiles");
                     getSupportedProfiles.setAccessible(true);
-                    int amountProfilesSupported = ((Class[])getSupportedProfiles.invoke(null)).length;
+                    int amountProfilesSupported = ((Class<?>[])getSupportedProfiles.invoke(null)).length;
                     log(TAG + " processProfileServiceStateChanged: supported " + amountProfilesSupported);
                     if (registered.size() == amountProfilesSupported) {
                         log(TAG + " processProfileServiceStateChanged: registered all supported profiles");

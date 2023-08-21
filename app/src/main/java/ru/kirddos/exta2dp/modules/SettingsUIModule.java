@@ -28,6 +28,10 @@ import java.util.List;
 
 import io.github.libxposed.api.XposedContext;
 import io.github.libxposed.api.XposedModule;
+//import io.github.libxposed.api.annotations.AfterInvocation;
+//import io.github.libxposed.api.annotations.BeforeInvocation;
+//import io.github.libxposed.api.annotations.XposedHooker;
+
 import ru.kirddos.exta2dp.R;
 import ru.kirddos.exta2dp.SourceCodecType;
 
@@ -35,6 +39,8 @@ import static ru.kirddos.exta2dp.ConstUtils.*;
 
 public class SettingsUIModule extends XposedModule {
     protected static final int[] CODEC_TYPES = {
+            SOURCE_CODEC_TYPE_FLAC,
+            SOURCE_CODEC_TYPE_LC3PLUS_HR,
             SOURCE_CODEC_TYPE_LHDCV5,
             SOURCE_CODEC_TYPE_LHDCV3,
             SOURCE_CODEC_TYPE_LHDCV2,
@@ -54,11 +60,12 @@ public class SettingsUIModule extends XposedModule {
         log("SettingsModule: " + param.getProcessName());
     }
 
-    @SuppressLint("DiscouragedPrivateApi")
+    @SuppressWarnings({"ConstantConditions", "unchecked"})
+    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi"})
     @Override
     public void onPackageLoaded(@NonNull PackageLoadedParam param) {
         super.onPackageLoaded(param);
-        log(" Exception: " + param.getPackageName());
+        log("Package: " + param.getPackageName());
         log("main classloader is " + this.getClassLoader());
         log("param classloader is " + param.getClassLoader());
         log("class classloader is " + SourceCodecType.class.getClassLoader());
@@ -70,38 +77,13 @@ public class SettingsUIModule extends XposedModule {
         log("In settings!");
 
         try {
-            Class<?> btCodecConfig = param.getClassLoader().loadClass("android.bluetooth.BluetoothCodecConfig");
-
-            Method getCodecName = btCodecConfig.getDeclaredMethod("getCodecName", int.class);
-            hookBefore(getCodecName, callback -> {
-
-                int type = callback.getArg(0);
-                String name;
-                //log(TAG + " BluetoothCodecConfig: getCodecName");
-
-                if (type == SOURCE_CODEC_TYPE_LHDCV2) {
-                    name = "LHDC V2";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
-                    name = "LHDC V3";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
-                    name = "LHDC V5";
-                } else {
-                    return;
-                }
-
-                callback.returnAndSkip(name);
-            });
-        } catch (ClassNotFoundException | NoSuchMethodException | NullPointerException e) {
-            log(TAG + " btCodecConfig: ", e);
-        }
-
-        try {
             Class<?> abstractBtDialogPrefController = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.AbstractBluetoothDialogPreferenceController");
 
             Method getCurrentCodecConfig = abstractBtDialogPrefController.getDeclaredMethod("getCurrentCodecConfig");
             Method getA2dpActiveDevice = recursiveFindMethod(abstractBtDialogPrefController, "getA2dpActiveDevice");
             getA2dpActiveDevice.setAccessible(true);
 
+            //noinspection JavaReflectionMemberAccess
             Method getCodecStatus = BluetoothA2dp.class.getDeclaredMethod("getCodecStatus", BluetoothDevice.class);
 
             Field mBluetoothA2dp = abstractBtDialogPrefController.getSuperclass().getDeclaredField("mBluetoothA2dp");
@@ -129,7 +111,7 @@ public class SettingsUIModule extends XposedModule {
                         return;
                     }
                     if (codecStatus.getCodecConfig().getCodecType() >= SOURCE_CODEC_TYPE_LHDCV2) {
-                        Log.d(TAG, "LHDC codec type");
+                        Log.d(TAG, "LHDC/LC3plus/FLAC codec type");
                     }
                     callback.returnAndSkip(codecStatus.getCodecConfig());
                 } catch (IllegalAccessException | InvocationTargetException e) {
@@ -299,20 +281,7 @@ public class SettingsUIModule extends XposedModule {
 
             Class<?> btCodecDialogPreference = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothCodecDialogPreference");
 
-            Method initialize = null;
-            getRadioButtonGroupId = null;
-            /* for (Method m : btCodecDialogPreference.getDeclaredMethods()) {
-                log(": Found method " + m.getName());
-                if (m.getName().equals("initialize")) {
-                    initialize = m;
-                } else if (m.getName().equals("getRadioButtonGroupId")) {
-                    getRadioButtonGroupId = m;
-                }
-            }  */
-
-            //if (initialize == null)
-            initialize = btCodecDialogPreference.getDeclaredMethod("initialize", Context.class);
-            //if (getRadioButtonGroupId == null)
+            Method initialize = btCodecDialogPreference.getDeclaredMethod("initialize", Context.class);
             getRadioButtonGroupId = btCodecDialogPreference.getDeclaredMethod("getRadioButtonGroupId");
             getRadioButtonGroupId.setAccessible(true);
             hookBefore(getRadioButtonGroupId, callback -> callback.returnAndSkip(R.id.bluetooth_audio_codec_radio_group));
@@ -331,6 +300,8 @@ public class SettingsUIModule extends XposedModule {
                     mRadioButtonIds.add(R.id.bluetooth_audio_codec_lhdcv2);
                     mRadioButtonIds.add(R.id.bluetooth_audio_codec_lhdcv3);
                     mRadioButtonIds.add(R.id.bluetooth_audio_codec_lhdcv5);
+                    mRadioButtonIds.add(R.id.bluetooth_audio_codec_lc3plus_hr);
+                    mRadioButtonIds.add(R.id.bluetooth_audio_codec_flac);
                     String[] stringArray = getResources().getStringArray(
                             R.array.bluetooth_a2dp_codec_titles);
 
@@ -339,7 +310,6 @@ public class SettingsUIModule extends XposedModule {
                     log("a2dp_codec_titles array: " + Arrays.toString(stringArray));
 
                     ArrayList<String> mRadioButtonStrings = (ArrayList<String>) radioButtonStrings.get(callback.getThis());
-
                     mRadioButtonStrings.addAll(Arrays.asList(stringArray));
 
                     stringArray = getResources().getStringArray(R.array.bluetooth_a2dp_codec_summaries);
@@ -361,41 +331,12 @@ public class SettingsUIModule extends XposedModule {
             btA2dpConfigStore.setAccessible(true);
             Class<?> btA2dpConfigStoreClass = btA2dpConfigStore.getType();
 
-            /*Method setSampleRate = null;
-            Method setBitsPerSample = null;
-            Method setChannelMode = null;
-            Method setCodecType = null;
-            Method setCodecPriority = null;
-            Method setCodecSpecific1Value = null;
-            Method setCodecSpecific2Value = null;
-            Method setCodecSpecific3Value = null;
-            Method setCodecSpecific4Value = null;
-            for (Method m : btA2dpConfigStoreClass.getDeclaredMethods()) {
-                log(": Found method " + m.getName());
-                if (m.getName().equals("setSampleRate")) {
-                    setSampleRate = m;
-                } else if (m.getName().equals("setBitsPerSample")) {
-                    setBitsPerSample = m;
-                } else if (m.getName().equals("setChannelMode")) {
-                    setChannelMode = m;
-                } else if (m.getName().equals("setCodecPriority")) {
-                    setCodecPriority = m;
-                } else if (m.getName().equals("setCodecType")) {
-                    setCodecType = m;
-                }
-            }  */
-
-            //if (setSampleRate == null)
             Method setSampleRate = btA2dpConfigStoreClass.getDeclaredMethod("setSampleRate", int.class);
-            //if (setBitsPerSample == null)
             Method setBitsPerSample = btA2dpConfigStoreClass.getDeclaredMethod("setBitsPerSample", int.class);
-            //if (setChannelMode == null)
             Method setChannelMode = btA2dpConfigStoreClass.getDeclaredMethod("setChannelMode", int.class);
-            //if (setCodecType == null)
             Method setCodecType = btA2dpConfigStoreClass.getDeclaredMethod("setCodecType", int.class);
-            //if (setCodecPriority == null)
             Method setCodecPriority = btA2dpConfigStoreClass.getDeclaredMethod("setCodecPriority", int.class);
-            Method setCodecSpecific1Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific1Value", long.class);
+            //Method setCodecSpecific1Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific1Value", long.class);
             //Method setCodecSpecific2Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific2Value", int.class);
             //Method setCodecSpecific3Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific3Value", int.class);
             //Method setCodecSpecific4Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific4Value", int.class);
@@ -414,6 +355,12 @@ public class SettingsUIModule extends XposedModule {
                             break;
                         case 10:
                             type = SOURCE_CODEC_TYPE_LHDCV5;
+                            break;
+                        case 11:
+                            type = SOURCE_CODEC_TYPE_LC3PLUS_HR;
+                            break;
+                        case 12:
+                            type = SOURCE_CODEC_TYPE_FLAC;
                             break;
                         default:
                             return;
@@ -441,11 +388,15 @@ public class SettingsUIModule extends XposedModule {
                         index = 9;
                     } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
                         index = 10;
+                    } else if (type == SOURCE_CODEC_TYPE_LC3PLUS_HR) {
+                        index = 11;
+                    } else if (type == SOURCE_CODEC_TYPE_FLAC) {
+                        index = 12;
                     }
 
                     log(TAG + " Hooked BluetoothCodecDialogPreferenceController.convertCfgToBtnIndex: type = " + type + ", index = " + index);
 
-                    if (index != 0) { // Handle LHDC 2/3/4/5 only
+                    if (index != 0) { // Handle LHDC 2/3/4/5 or LC3plus HR/FLAC only
                         callback.returnAndSkip(index);
                     }
                 } catch (NullPointerException e) {
@@ -453,21 +404,9 @@ public class SettingsUIModule extends XposedModule {
                 }
             });
 
-            Class<?> btCodecDialogSampleRatePreference = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothSampleRateDialogPreference");
+            /*Class<?> btCodecDialogSampleRatePreference = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothSampleRateDialogPreference");
 
-            /*initialize = null;
-            getRadioButtonGroupId = null;
-            for (Method m : btCodecDialogSampleRatePreference.getDeclaredMethods()) {
-                log(": Found method " + m.getName());
-                if (m.getName().equals("initialize")) {
-                    initialize = m;
-                } else if (m.getName().equals("getRadioButtonGroupId")) {
-                    getRadioButtonGroupId = m;
-                }
-            }*/
-            //if (initialize == null)
             initialize = btCodecDialogSampleRatePreference.getDeclaredMethod("initialize", Context.class);
-            //if (getRadioButtonGroupId == null)
             getRadioButtonGroupId = btCodecDialogSampleRatePreference.getDeclaredMethod("getRadioButtonGroupId");
 
             initialize.setAccessible(true);
@@ -488,15 +427,11 @@ public class SettingsUIModule extends XposedModule {
                     mRadioButtonIds.add(R.id.bluetooth_audio_sample_rate_1920);
                     String[] stringArray = getResources().getStringArray(
                                 R.array.bluetooth_a2dp_codec_sample_rate_titles);
-                    for (int i = 0; i < stringArray.length; i++) {
-                        mRadioButtonStrings.add(stringArray[i]);
-                    }
+                    mRadioButtonStrings.addAll(Arrays.asList(stringArray));
                     log("a2dp_codec_sample_rate_titles array: " + Arrays.toString(stringArray));
                     stringArray = getResources().getStringArray(
                             R.array.bluetooth_a2dp_codec_sample_rate_summaries);
-                    for (int i = 0; i < stringArray.length; i++) {
-                        mSummaryStrings.add(stringArray[i]);
-                    }
+                    mSummaryStrings.addAll(Arrays.asList(stringArray));
                     radioButtonIds.set(callback.getThis(), mRadioButtonIds);
                     radioButtonStrings.set(callback.getThis(), mRadioButtonStrings);
                     summaryStrings.set(callback.getThis(), mSummaryStrings);
@@ -505,25 +440,25 @@ public class SettingsUIModule extends XposedModule {
                     log("Exception: ", e);
                 }
                 callback.returnAndSkip(null);
-            });
+            });*/
+
             Class<?> ldacQualityPref = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothQualityDialogPreference");
 
             getRadioButtonGroupId = ldacQualityPref.getDeclaredMethod("getRadioButtonGroupId");
-            initialize = ldacQualityPref.getDeclaredMethod("initialize", Context.class);;
+            initialize = ldacQualityPref.getDeclaredMethod("initialize", Context.class);
 
             Method getKey = recursiveFindMethod(ldacQualityPref,"getKey");
 
-            Method finalGetRadioButtonGroupId1 = getRadioButtonGroupId;
             getRadioButtonGroupId.setAccessible(true);
             hookBefore(initialize, callback -> {
                 try {
                     //int resId = (int) mDialogLayoutResId.get(callback.getThis());
 
-                    //int resId = (int) finalGetRadioButtonGroupId1.invoke(callback.getThis());
+                    //int resId = (int) getRadioButtonGroupId1.invoke(callback.getThis());
 
                     String key = (String) getKey.invoke(callback.getThis());
 
-                    if (key == null || key.equals("ldac")) { //Dirty hack: if no key is present, this must be LHDC
+                    if (key == null || key.equals("bluetooth_select_a2dp_lhdc_playback_quality")) { //Dirty hack: if no key is present, this must be LHDC
                         //resId = R.id.bluetooth_lhdc_audio_quality_scroll_view;
                         log(TAG + " LHDC Quality: initialize");
                         ArrayList<Integer> mRadioButtonIds = (ArrayList<Integer>) radioButtonIds.get(callback.getThis());
@@ -541,16 +476,11 @@ public class SettingsUIModule extends XposedModule {
                         mRadioButtonIds.add(R.id.bluetooth_lhdc_audio_quality_best_effort);
                         String[] stringArray= getResources().getStringArray(
                                     R.array.bluetooth_a2dp_codec_lhdc_playback_quality_titles);
-
-                        for (int i = 0; i < stringArray.length; i++) {
-                            mRadioButtonStrings.add(stringArray[i]);
-                        }
+                        mRadioButtonStrings.addAll(Arrays.asList(stringArray));
                         log("a2dp_codec_lhdc_quality_titles array: " + Arrays.toString(stringArray));
                         stringArray = getResources().getStringArray(
                                 R.array.bluetooth_a2dp_codec_lhdc_playback_quality_summaries);
-                        for (int i = 0; i < stringArray.length; i++) {
-                            mSummaryStrings.add(stringArray[i]);
-                        }
+                        mSummaryStrings.addAll(Arrays.asList(stringArray));
                         log("a2dp_codec_lhdc_quality_summaries array: " + Arrays.toString(stringArray));
                         radioButtonIds.set(callback.getThis(), mRadioButtonIds);
                         radioButtonStrings.set(callback.getThis(), mRadioButtonStrings);
@@ -561,7 +491,6 @@ public class SettingsUIModule extends XposedModule {
                     log("Exception: ", e);
                 }
             });
-
         } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException | NullPointerException /*|
                  IllegalAccessException*/ e) {
             log(TAG + " Exception: ", e);
@@ -578,6 +507,8 @@ public class SettingsUIModule extends XposedModule {
             mBluetoothA2dpConfigStore.setAccessible(true);
             mPreferenceControllers.setAccessible(true);
             Class<?> btA2dpConfigStore = mBluetoothA2dpConfigStore.getType();
+            Method setSampleRate = btA2dpConfigStore.getDeclaredMethod("setSampleRate", int.class);
+            setSampleRate.setAccessible(true);
             Method onCreateView = devSettingsDashboardFragment.getDeclaredMethod("onCreateView", LayoutInflater.class, ViewGroup.class, Bundle.class);
             Method buildPreferenceControllers = devSettingsDashboardFragment.getDeclaredMethod("buildPreferenceControllers", Context.class, Activity.class, lifecycleClass, devSettingsDashboardFragment, btA2dpConfigStore);
             buildPreferenceControllers.setAccessible(true);
@@ -619,10 +550,10 @@ public class SettingsUIModule extends XposedModule {
             hookAfter(buildPreferenceControllers, callback -> {
                 try {
                     ArrayList<Object> controllers = (ArrayList<Object>) callback.getResult();
-                    Object context = callback.getArgs()[0];
-                    Object activity = callback.getArgs()[1];
+                    Context context = (Context) callback.getArgs()[0];
+                    //Object activity = callback.getArgs()[1];
                     Object lifecycle = callback.getArgs()[2];
-                    Object fragment = callback.getArgs()[3];
+                    //Object fragment = callback.getArgs()[3];
                     Object store = callback.getArgs()[4];
 
                     Object controller = ldacPrefControl.getDeclaredConstructor(Context.class, lifecycleClass, btA2dpConfigStore).newInstance(context, lifecycle, store);
@@ -725,7 +656,7 @@ public class SettingsUIModule extends XposedModule {
                                 }
                             }
                             if (type == SOURCE_CODEC_TYPE_LHDCV5) {
-                                // All items of LHDCV5 are available.
+                                // All items are available for LHDC V5.
                                 for (int i = 0; i <= LHDC_QUALITY_DEFAULT_MAX_INDEX; i++) {
                                     selectableIndex.add(i);
                                 }
@@ -745,6 +676,12 @@ public class SettingsUIModule extends XposedModule {
             hookAfter(updateState, callback -> {
                 try {
                     Object pref = mPreference.get(callback.getThis());
+
+                    if (pref == null) {
+                        callback.setThrowable(null);
+                        return;
+                    }
+
                     Class<?> prefClass = pref.getClass();
 
                     String key = (String) getPreferenceKey.invoke(callback.getThis());
@@ -789,7 +726,7 @@ public class SettingsUIModule extends XposedModule {
                             }
                         }
                 } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException e) {
-                    log(TAG + "Exception: ", e);
+                    log(TAG + " Exception: ", e);
                 }
             });
             hookBefore(convertCfgToBtnIndex, callback -> {
@@ -800,7 +737,12 @@ public class SettingsUIModule extends XposedModule {
                     getRadioButtonGroupId.setAccessible(true);
                     final int config = (int) callback.getArg(0);
                     String key = (String) getPreferenceKey.invoke(callback.getThis());
-                    if (!key.contains("bluetooth_select_a2dp_lhdc_playback_quality")) {
+                    if (key.contains("bluetooth_a2dp_ldac_playback_quality")) {
+                        log(TAG + " in LDAC controller: convertCfgToBtnIndex: " + config);
+                        if (config >= 1004) {
+                            //TODO: Come up with a way to alter default bitrate in module settings
+                            callback.setArg(0, 1003);
+                        }
                         return;
                     }
 
@@ -839,20 +781,26 @@ public class SettingsUIModule extends XposedModule {
                     Method getKey = recursiveFindMethod(ldacPrefClass,"getKey");
                     Method setEnabled = recursiveFindMethod(ldacPrefClass,"setEnabled", boolean.class);
                     Method setDialogTitle = recursiveFindMethod(ldacPrefClass,"setDialogTitle", CharSequence.class);
-                    Method setSummary = recursiveFindMethod(ldacPrefClass, "setSummary", CharSequence.class);
+                    //Method setSummary = recursiveFindMethod(ldacPrefClass, "setSummary", CharSequence.class);
 
                     int prefCount = (int) getPreferenceCount.invoke(preferenceScreen);
 
-                    //log(TAG + " : Preference Count: " + prefCount);
+                    log(TAG + " : Preference Count: " + prefCount);
 
                     Object networking = null;
 
                     for (int i = 0; i < prefCount; i++) {
                         Object currPref = getPreference.invoke(preferenceScreen, i);
                         String title = String.valueOf((CharSequence) getTitle.invoke(currPref));
-                        //log(TAG + " : Pref " + i + " -> " + title);
+
+                        String key = String.valueOf((CharSequence) getKey.invoke(currPref));
+
+                        log(TAG + " : Pref " + i + " -> " + title + " (" + key + ")");
 
                         if (title.toLowerCase().contains("networking")) {
+                            networking = currPref;
+                            break;
+                        } else if (key.toLowerCase().contains("networking")) {
                             networking = currPref;
                             break;
                         }
@@ -904,7 +852,7 @@ public class SettingsUIModule extends XposedModule {
                                 if (x.getThis() == lhdcQualityPreference) x.returnAndSkip(R.id.bluetooth_lhdc_audio_quality_radio_group);
                     });
 
-                    ArrayList<Object> controllers = (ArrayList<Object>) mPreferenceControllers.get(callback.getThis());
+                    ArrayList<?> controllers = (ArrayList<?>) mPreferenceControllers.get(callback.getThis());
 
                     Object lhdcQualityController = null;
 
@@ -929,13 +877,94 @@ public class SettingsUIModule extends XposedModule {
 
             });
 
+            /*Class<?> btCodecDialogSampleRatePreferenceController = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothSampleRateDialogPreferenceController");
+            writeConfigurationValues = btCodecDialogSampleRatePreferenceController.getDeclaredMethod("writeConfigurationValues", int.class);
+
+            convertCfgToBtnIndex = btCodecDialogSampleRatePreferenceController.getDeclaredMethod("convertCfgToBtnIndex");
+
+            hookBefore(convertCfgToBtnIndex, callback -> {
+                int config = callback.getArg(0);
+                int index = 0;
+                switch (config) {
+                    case BluetoothCodecConfig.SAMPLE_RATE_44100:
+                        index = 1;
+                        break;
+                    case BluetoothCodecConfig.SAMPLE_RATE_48000:
+                        index = 2;
+                        break;
+                    case BluetoothCodecConfig.SAMPLE_RATE_88200:
+                        index = 3;
+                        break;
+                    case BluetoothCodecConfig.SAMPLE_RATE_96000:
+                        index = 4;
+                        break;
+                    case BluetoothCodecConfig.SAMPLE_RATE_176400:
+                        index = 5;
+                        break;
+                    case BluetoothCodecConfig.SAMPLE_RATE_192000:
+                        index = 6;
+                        break;
+                    default:
+                        Log.e(TAG, "Unsupported config:" + config);
+                        break;
+                }
+                callback.returnAndSkip(index);
+            });
+
+            hookBefore(writeConfigurationValues, callback -> {
+                try {
+                    int index = callback.getArg(0);
+                    int sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_NONE; // default
+                    switch (index) {
+                        case 0:
+                            final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
+                            if (currentConfig != null) {
+                                int type = currentConfig.getCodecType();
+                                if (type != SOURCE_CODEC_TYPE_LHDCV2 &&
+                                        type != SOURCE_CODEC_TYPE_LHDCV3 &&
+                                        type != SOURCE_CODEC_TYPE_LHDCV5) {
+                                    return;
+                                }
+                            }
+                            break;
+                        case 1:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_44100;
+                            break;
+                        case 2:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_48000;
+                            break;
+                        case 3:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_88200;
+                            break;
+                        case 4:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_96000;
+                            break;
+                        case 5:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_176400;
+                            break;
+                        case 6:
+                            sampleRateValue = BluetoothCodecConfig.SAMPLE_RATE_192000;
+                            break;
+
+                        default:
+                            break;
+                    }
+                    setSampleRate.invoke(mBluetoothA2dpConfigStore.get(callback.getThis()), sampleRateValue);
+                    callback.returnAndSkip(null);
+                } catch (NullPointerException | InvocationTargetException | IllegalAccessException e) {
+                    log(TAG + " Exception: ", e);
+                }
+            });*/
+
+            //BluetoothCodecConfig currentConfig = getCurrentCodecConfig();
+
         } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException /*| IllegalAccessException*/ e) {
             log(TAG + " Exception: ", e);
         }
         
     }
+    @SuppressWarnings("unused")
     public void recursivePrintMethods(Class<?> clazz) { recursivePrintMethods(clazz, 0); }
-
     public void recursivePrintMethods(Class<?> clazz, int level) {
         if (clazz == null) {
             log(TAG+ " : Done!");
@@ -947,6 +976,7 @@ public class SettingsUIModule extends XposedModule {
         }
         recursivePrintMethods(clazz.getSuperclass(), level + 1);
     }
+    @SuppressWarnings("unused")
     public void recursivePrintFields(Class<?> clazz) { recursivePrintFields(clazz, 0); }
     public void recursivePrintFields(Class<?> clazz, int level) {
         if (clazz == null) {
@@ -989,14 +1019,18 @@ public class SettingsUIModule extends XposedModule {
         return recursiveFindMethodByName(clazz.getSuperclass(), name);
     }
 
+    @SuppressWarnings("unused")
     public Class<?> recursiveFindSuperClassByName(Class<?> clazz, String name) {
         if (clazz == null) {
             log(TAG+ " : Not found: " + name);
             return null;
         }
+        //noinspection ConstantConditions
         if(clazz.getCanonicalName().endsWith(name)) return clazz;
         return recursiveFindSuperClassByName(clazz.getSuperclass(), name);
     }
+
+    @SuppressWarnings("unused")
     public void recursivePrintSuperClass(Class<?> clazz) {
         if (clazz == null) {
             log(TAG+ " : Done!");
