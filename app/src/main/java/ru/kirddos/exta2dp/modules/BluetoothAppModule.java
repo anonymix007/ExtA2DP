@@ -24,6 +24,7 @@ public class BluetoothAppModule extends XposedModule {
         log(TAG + ": " + param.getProcessName());
     }
 
+    @SuppressLint("NewApi")
     protected static final int[] CODEC_IDS = {
             BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC,
             BluetoothCodecConfig.SOURCE_CODEC_TYPE_AAC,
@@ -41,7 +42,7 @@ public class BluetoothAppModule extends XposedModule {
             SOURCE_CODEC_TYPE_FLAC
     };
 
-    @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi", "PrivateApi"})
+    @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi", "PrivateApi", "NewApi"})
     @SuppressWarnings({"NullableProblems", "ConstantConditions"})
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
@@ -154,7 +155,6 @@ public class BluetoothAppModule extends XposedModule {
                     }
 
                     BluetoothCodecConfig[] res = new BluetoothCodecConfig[pos + 5]; // LHDC 2, 3/4, 5 and LC3plus HR/FLAC for now
-
 
                     System.arraycopy(mCodecConfigPriorities, 0, res, 0, pos);
 

@@ -10,8 +10,8 @@ android {
         applicationId "ru.kirddos.exta2dp"
         minSdk 33
         targetSdk 34
-        versionCode 200
-        versionName "2.0.0"
+        versionCode 210
+        versionName "2.1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -44,7 +44,6 @@ android {
     }
 
     ndkVersion '25.2.9519653'
-    buildToolsVersion '33.0.1'
     externalNativeBuild {
         cmake {
             path file('src/main/cpp/CMakeLists.txt')

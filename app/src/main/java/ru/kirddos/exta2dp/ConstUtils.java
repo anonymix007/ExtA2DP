@@ -17,7 +17,7 @@ public class ConstUtils {
     public static final int SOURCE_CODEC_TYPE_LC3PLUS_HR = SOURCE_QVA_CODEC_TYPE_MAX + 4;
     public static final int SOURCE_CODEC_TYPE_FLAC = SOURCE_QVA_CODEC_TYPE_MAX + 5;
 
-    public static final int SOURCE_CODEC_TYPE_OPUS = SourceCodecType.getIdByName("OPUS", SOURCE_QVA_CODEC_TYPE_MAX_EXTA2DP);
+    public static final int SOURCE_CODEC_TYPE_OPUS = SourceCodecType.getIdByName("OPUS", -1);
 
 
 
@@ -31,6 +31,11 @@ public class ConstUtils {
     public static final int AUDIO_FORMAT_FLAC = 0x1B000000;
     public static final int AUDIO_FORMAT_LC3 = 0x2B000000;
 
+
+    public static final int FLAC_STEREO_MONO_MASK = 0xF;
+    public static final int FLAC_STEREO = 0x2;
+    public static final int FLAC_DEFAULT_VALUE = FLAC_STEREO;
+    public static final int FLAC_MONO = 0x1;
 
     // In standard case, low0 is available
     public static final int lhdc_quality_index_adjust_offset = 0;

@@ -43,12 +43,10 @@ static const void *(*exta2dp_get_profile_interface)(const char *name) = nullptr;
 
 static bool dummy(void) {
     void *const ret = __builtin_return_address(0);
-    char **sym = backtrace_symbols(&ret, 1);
     Dl_info info;
     dladdr(ret, &info);
-    __android_log_print(ANDROID_LOG_DEBUG, TAG, "Dummy method called from %s at %s / %s!", sym[0],
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "Dummy method called from %s in %s!",
                         info.dli_fname, info.dli_sname);
-    free(sym);
     return true;
 }
 
@@ -102,8 +100,10 @@ static int glue_init(bt_callbacks_t *callbacks, bool guest_mode,
                      const char *user_data_directory) {
     original_callbacks.fresh = callbacks;
 
-    if ((callbacks->size <= sizeof(bt_callbacks_t))) {
-        __android_log_print(ANDROID_LOG_DEBUG, TAG, "%s: Applying fix for older callbacks", __func__);
+    if ((callbacks->size < sizeof(bt_callbacks_t))) {
+        __android_log_print(ANDROID_LOG_DEBUG, TAG,
+                            "%s: Applying fix for older callbacks (based on size: %zu < %zu)",
+                            __func__, callbacks->size, sizeof(bt_callbacks_t));
     }
 
     //original_interface->init(&dummy_callbacks, guest_mode, is_common_criteria_mode, config_compare_result, init_flags, is_atv, user_data_directory);
@@ -246,7 +246,6 @@ jint JNI_OnLoad(JavaVM *jvm, void *) {
     return JNI_VERSION_1_6;
 }
 
-
 extern "C" [[gnu::visibility("default")]] [[gnu::used]]
 NativeOnModuleLoaded native_init(const NativeAPIEntries *entries) {
     hook_func = entries->hook_func;
@@ -258,6 +257,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries *entries) {
 
     exta2dp_handle = dlopen(EXTA2DP_BT_LIBRARY_NAME, RTLD_NOW);
     // TODO: android_get_exported_namespace and android_dlopen_ext to drop libandroidicu.so and others
+    // TODO: there's no need for that. Apparently, it was all for libxml2, which is not being used by the stack
     //android_dlopen_ext("libbluetooth_exta2dp.so", RTLD_NOW, NULL);
     if (exta2dp_handle == nullptr) {
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "ExtA2DP bluetooth library load failed: %s",

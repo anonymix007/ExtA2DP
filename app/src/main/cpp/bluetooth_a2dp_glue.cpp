@@ -4,6 +4,8 @@
 #include "bluetooth.h"
 #define TAG "BluetoothAppModuleNativeA2DPGlue"
 
+#define BTAV_A2DP_SOURCE_CODEC_UNAVAILABLE ((btav_a2dp_codec_index_t) -1)
+
 int codec_indices[BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX] = {};
 
 static btav_source_callbacks_t* original_a2dp_callbacks = nullptr;
@@ -16,27 +18,27 @@ static btav_a2dp_codec_index_t jni_to_stack(int val) {
   for (int i = 0; i < BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX; i++) {
     if (codec_indices[i] == val) return (btav_a2dp_codec_index_t) i;
   }
-  return BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX;
+  return BTAV_A2DP_SOURCE_CODEC_UNAVAILABLE;
 }
 
-static std::vector<btav_a2dp_codec_config_t> jni_to_stack(const std::vector<btav_a2dp_codec_config_t> val) {
+static std::vector<btav_a2dp_codec_config_t> jni_to_stack(const std::vector<btav_a2dp_codec_config_t>& val) {
   std::vector<btav_a2dp_codec_config_t> stack;
   for (auto &it:val) {
     btav_a2dp_codec_config_t stack_config = it;
     stack_config.codec_type = jni_to_stack(stack_config.codec_type);
-    if (stack_config.codec_type != BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX) {
+    if (stack_config.codec_type != BTAV_A2DP_SOURCE_CODEC_UNAVAILABLE) {
       stack.push_back(stack_config);
     }
   }
   return stack;
 }
 
-static std::vector<btav_a2dp_codec_config_t> stack_to_jni(const std::vector<btav_a2dp_codec_config_t> val) {
+static std::vector<btav_a2dp_codec_config_t> stack_to_jni(const std::vector<btav_a2dp_codec_config_t>& val) {
   std::vector<btav_a2dp_codec_config_t> jni;
   for (auto &it:val) {
     btav_a2dp_codec_config_t jni_config = it;
     jni_config.codec_type = stack_to_jni(jni_config.codec_type);
-    if (jni_config.codec_type != BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX) {
+    if (jni_config.codec_type != BTAV_A2DP_SOURCE_CODEC_UNAVAILABLE) {
       jni.push_back(jni_config);
     }
   }
@@ -60,10 +62,10 @@ static void bta2dp_audio_config_callback(
   std::vector<btav_a2dp_codec_config_t> jni_selectable = stack_to_jni(codecs_selectable_capabilities);
 
   codec_config.codec_type = stack_to_jni(codec_config.codec_type);
-  if (codec_config.codec_type != BTAV_A2DP_QVA_CODEC_INDEX_SOURCE_MAX) {
+  if (codec_config.codec_type != BTAV_A2DP_SOURCE_CODEC_UNAVAILABLE) {
     original_a2dp_callbacks->audio_config_cb(bd_addr, codec_config, jni_local, jni_selectable);
   } else {
-    __android_log_print(ANDROID_LOG_ERROR, TAG, "Incorrect codec selected by stack, this is BAD", __func__);
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "%s: Incorrect codec selected by stack, this is BAD", __func__);
   }
 }
 

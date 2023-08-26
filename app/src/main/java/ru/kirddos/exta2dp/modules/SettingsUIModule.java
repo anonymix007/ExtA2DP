@@ -19,6 +19,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -38,6 +39,7 @@ import ru.kirddos.exta2dp.SourceCodecType;
 import static ru.kirddos.exta2dp.ConstUtils.*;
 
 public class SettingsUIModule extends XposedModule {
+    @SuppressLint("NewApi")
     protected static final int[] CODEC_TYPES = {
             SOURCE_CODEC_TYPE_FLAC,
             SOURCE_CODEC_TYPE_LC3PLUS_HR,
@@ -61,7 +63,7 @@ public class SettingsUIModule extends XposedModule {
     }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
-    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi"})
+    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi", "NewApi", "SoonBlockedPrivateApi"})
     @Override
     public void onPackageLoaded(@NonNull PackageLoadedParam param) {
         super.onPackageLoaded(param);
@@ -158,7 +160,7 @@ public class SettingsUIModule extends XposedModule {
             Method onBindDialogView;
             Method getRadioButtonGroupId;
 
-            Class<?> customPreferenceDialogFragment = recursiveFindField( baseBtCodecDialogPreference, "mFragment").getType();
+            Class<?> customPreferenceDialogFragment = recursiveFindField(baseBtCodecDialogPreference, "mFragment").getType();
             Method onCreateDialogView = recursiveFindMethod(customPreferenceDialogFragment, "onCreateDialogView", Context.class);
             Field mDialogLayoutRes = recursiveFindField(customPreferenceDialogFragment, "mDialogLayoutRes");
 
@@ -209,7 +211,6 @@ public class SettingsUIModule extends XposedModule {
                     int resource;
 
 
-
                     LayoutInflater inflater = (LayoutInflater) getBaseContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
                     ScrollView scrollView = (ScrollView) view;
                     RadioGroup radioGroup = null;
@@ -229,7 +230,8 @@ public class SettingsUIModule extends XposedModule {
                     LinearLayout layout = ((LinearLayout) scrollView.getChildAt(0));
 
 
-                    if (radioGroup == null) radioGroup = (RadioGroup) inflater.inflate(resource, null);
+                    if (radioGroup == null)
+                        radioGroup = (RadioGroup) inflater.inflate(resource, null);
 
                     if (layout.getChildAt(0) != radioGroup) {
                         layout.removeView(layout.getChildAt(0));
@@ -327,15 +329,19 @@ public class SettingsUIModule extends XposedModule {
             Method convertCfgToBtnIndex = btCodecDialogPreferenceController.getDeclaredMethod("convertCfgToBtnIndex", int.class);
             Method writeConfigurationValues = btCodecDialogPreferenceController.getDeclaredMethod("writeConfigurationValues", int.class);
 
-            Field btA2dpConfigStore = btCodecDialogPreferenceController.getSuperclass().getDeclaredField("mBluetoothA2dpConfigStore");
-            btA2dpConfigStore.setAccessible(true);
-            Class<?> btA2dpConfigStoreClass = btA2dpConfigStore.getType();
+            Field mBluetoothA2dpConfigStore = btCodecDialogPreferenceController.getSuperclass().getDeclaredField("mBluetoothA2dpConfigStore");
+            mBluetoothA2dpConfigStore.setAccessible(true);
+            Class<?> btA2dpConfigStoreClass = mBluetoothA2dpConfigStore.getType();
 
             Method setSampleRate = btA2dpConfigStoreClass.getDeclaredMethod("setSampleRate", int.class);
             Method setBitsPerSample = btA2dpConfigStoreClass.getDeclaredMethod("setBitsPerSample", int.class);
             Method setChannelMode = btA2dpConfigStoreClass.getDeclaredMethod("setChannelMode", int.class);
             Method setCodecType = btA2dpConfigStoreClass.getDeclaredMethod("setCodecType", int.class);
             Method setCodecPriority = btA2dpConfigStoreClass.getDeclaredMethod("setCodecPriority", int.class);
+
+            Field mCodecSpecific1Value = btA2dpConfigStoreClass.getDeclaredField("mCodecSpecific1Value");
+            mCodecSpecific1Value.setAccessible(true);
+
             //Method setCodecSpecific1Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific1Value", long.class);
             //Method setCodecSpecific2Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific2Value", int.class);
             //Method setCodecSpecific3Value = btA2dpConfigStoreClass.getDeclaredMethod("setCodecSpecific3Value", int.class);
@@ -347,29 +353,21 @@ public class SettingsUIModule extends XposedModule {
                     log(TAG + " Hooked BluetoothCodecDialogPreferenceController.writeConfigurationValues: type " + index);
                     int type;
                     switch (index) {
-                        case 8:
-                            type = SOURCE_CODEC_TYPE_LHDCV2;
-                            break;
-                        case 9:
-                            type = SOURCE_CODEC_TYPE_LHDCV3;
-                            break;
-                        case 10:
-                            type = SOURCE_CODEC_TYPE_LHDCV5;
-                            break;
-                        case 11:
-                            type = SOURCE_CODEC_TYPE_LC3PLUS_HR;
-                            break;
-                        case 12:
-                            type = SOURCE_CODEC_TYPE_FLAC;
-                            break;
-                        default:
+                        case 8 -> type = SOURCE_CODEC_TYPE_LHDCV2;
+                        case 9 -> type = SOURCE_CODEC_TYPE_LHDCV3;
+                        case 10 -> type = SOURCE_CODEC_TYPE_LHDCV5;
+                        case 11 -> type = SOURCE_CODEC_TYPE_LC3PLUS_HR;
+                        case 12 -> type = SOURCE_CODEC_TYPE_FLAC;
+                        default -> {
                             return;
+                        }
                     }
-                    setCodecType.invoke(btA2dpConfigStore.get(callback.getThis()), type);
-                    setCodecPriority.invoke(btA2dpConfigStore.get(callback.getThis()), BluetoothCodecConfig.CODEC_PRIORITY_HIGHEST);
-                    setSampleRate.invoke(btA2dpConfigStore.get(callback.getThis()), BluetoothCodecConfig.SAMPLE_RATE_NONE);
-                    setBitsPerSample.invoke(btA2dpConfigStore.get(callback.getThis()), BluetoothCodecConfig.BITS_PER_SAMPLE_NONE);
-                    setChannelMode.invoke(btA2dpConfigStore.get(callback.getThis()), BluetoothCodecConfig.CHANNEL_MODE_NONE);
+                    Object store = mBluetoothA2dpConfigStore.get(callback.getThis());
+                    setCodecType.invoke(store, type);
+                    setCodecPriority.invoke(store, BluetoothCodecConfig.CODEC_PRIORITY_HIGHEST);
+                    setSampleRate.invoke(store, BluetoothCodecConfig.SAMPLE_RATE_NONE);
+                    setBitsPerSample.invoke(store, BluetoothCodecConfig.BITS_PER_SAMPLE_NONE);
+                    setChannelMode.invoke(store, BluetoothCodecConfig.CHANNEL_MODE_NONE);
                     callback.returnAndSkip(null);
                 } catch (NullPointerException | IllegalAccessException |
                          InvocationTargetException e) {
@@ -447,7 +445,7 @@ public class SettingsUIModule extends XposedModule {
             getRadioButtonGroupId = ldacQualityPref.getDeclaredMethod("getRadioButtonGroupId");
             initialize = ldacQualityPref.getDeclaredMethod("initialize", Context.class);
 
-            Method getKey = recursiveFindMethod(ldacQualityPref,"getKey");
+            Method getKey = recursiveFindMethod(ldacQualityPref, "getKey");
 
             getRadioButtonGroupId.setAccessible(true);
             hookBefore(initialize, callback -> {
@@ -474,8 +472,8 @@ public class SettingsUIModule extends XposedModule {
                         mRadioButtonIds.add(R.id.bluetooth_lhdc_audio_quality_high);
                         mRadioButtonIds.add(R.id.bluetooth_lhdc_audio_quality_high1);
                         mRadioButtonIds.add(R.id.bluetooth_lhdc_audio_quality_best_effort);
-                        String[] stringArray= getResources().getStringArray(
-                                    R.array.bluetooth_a2dp_codec_lhdc_playback_quality_titles);
+                        String[] stringArray = getResources().getStringArray(
+                                R.array.bluetooth_a2dp_codec_lhdc_playback_quality_titles);
                         mRadioButtonStrings.addAll(Arrays.asList(stringArray));
                         log("a2dp_codec_lhdc_quality_titles array: " + Arrays.toString(stringArray));
                         stringArray = getResources().getStringArray(
@@ -487,16 +485,98 @@ public class SettingsUIModule extends XposedModule {
                         summaryStrings.set(callback.getThis(), mSummaryStrings);
                         callback.returnAndSkip(null);
                     }
-                } catch (IllegalAccessException | NullPointerException | InvocationTargetException e) {
-                    log("Exception: ", e);
+                } catch (IllegalAccessException | NullPointerException |
+                         InvocationTargetException e) {
+                    log(TAG + " Exception: ", e);
                 }
             });
-        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException | NullPointerException /*|
+
+            Class<?> btChannelModePreferenceController = param.getClassLoader().loadClass("com.android.settings.development.bluetooth.BluetoothChannelModeDialogPreferenceController");
+
+            writeConfigurationValues = btChannelModePreferenceController.getDeclaredMethod("writeConfigurationValues", int.class);
+            convertCfgToBtnIndex = btChannelModePreferenceController.getDeclaredMethod("convertCfgToBtnIndex", int.class);
+            Method getCurrentIndexByConfig = btChannelModePreferenceController.getDeclaredMethod("getCurrentIndexByConfig", BluetoothCodecConfig.class);
+            Method getSelectableIndex = btChannelModePreferenceController.getDeclaredMethod("getSelectableIndex");
+            Method getCurrentCodecConfig = recursiveFindMethod(btChannelModePreferenceController, "getCurrentCodecConfig");
+            getCurrentCodecConfig.setAccessible(true);
+
+            hookBefore(writeConfigurationValues, callback -> {
+                try {
+                    final int index = callback.getArg(0);
+                    Object store = mBluetoothA2dpConfigStore.get(callback.getThis());
+                    BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
+                    log(TAG + " writeConfigurationValues: current config: " + currentConfig);
+                    log(TAG + " writeConfigurationValues: current index: " + index);
+                    if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC ) {
+                        // Android doesn't really seem to support mono with anything other than 16/44100, so apply hack
+                        if (index == 1) {
+                            setChannelMode.invoke(store, BluetoothCodecConfig.CHANNEL_MODE_STEREO);
+                            mCodecSpecific1Value.set(store, FLAC_MONO);
+                            callback.returnAndSkip(null);
+                        } else if (index == 2) {
+                            setChannelMode.invoke(store, BluetoothCodecConfig.CHANNEL_MODE_STEREO);
+                            mCodecSpecific1Value.set(store, FLAC_STEREO);
+                            callback.returnAndSkip(null);
+                        }
+                    }
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    log(TAG + " Exception: ", e);
+                }
+            });
+
+            hookBefore(getCurrentIndexByConfig, callback -> {
+                BluetoothCodecConfig config = callback.getArg(0);
+                log(TAG + " getCurrentIndexByConfig: current config: " + config);
+                if (config == null) return;
+                if (config.getCodecType() == SOURCE_CODEC_TYPE_FLAC && (config.getCodecSpecific1() & FLAC_STEREO_MONO_MASK) == FLAC_MONO) {
+                    callback.returnAndSkip(1);
+                }
+            });
+
+            hookAfter(getSelectableIndex, callback-> {
+                try {
+                    BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
+                    log(TAG + " getSelectableIndex: current config: " + currentConfig);
+                    if (currentConfig == null) return;
+                    if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC) {
+                        List<Integer> selectableIndex = (List<Integer>) callback.getResult();
+                        selectableIndex.add(1);
+                        selectableIndex.add(2);
+                        callback.setResult(selectableIndex);
+                    }
+                } catch (InvocationTargetException | IllegalAccessException e) {
+                    log(TAG + " Exception: ", e);
+                }
+            });
+
+            hookBefore(convertCfgToBtnIndex, callback -> {
+                try {
+                    int config = callback.getArg(0);
+                    BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
+                    if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC) {
+                        // Android doesn't really seem to support mono with anything other than 16/44100, so apply hack
+                        if (config == BluetoothCodecConfig.CHANNEL_MODE_STEREO) {
+                            if ((currentConfig.getCodecSpecific1() & FLAC_STEREO_MONO_MASK) == FLAC_MONO) {
+                                callback.returnAndSkip(1);
+                            } else {
+                                callback.returnAndSkip(2);
+                            }
+                        } else {
+                            callback.returnAndSkip(0);
+                        }
+                    }
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    log(TAG + " Exception: ", e);
+                }
+            });
+
+        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException |
+                 NullPointerException /*|
                  IllegalAccessException*/ e) {
             log(TAG + " Exception: ", e);
         }
 
-        try{
+        try {
             Class<?> devSettingsDashboardFragment = param.getClassLoader().loadClass("com.android.settings.development.DevelopmentSettingsDashboardFragment");
 
             Class<?> lifecycleClass = param.getClassLoader().loadClass("com.android.settingslib.core.lifecycle.Lifecycle");
@@ -559,7 +639,8 @@ public class SettingsUIModule extends XposedModule {
                     Object controller = ldacPrefControl.getDeclaredConstructor(Context.class, lifecycleClass, btA2dpConfigStore).newInstance(context, lifecycle, store);
 
                     hookBefore(getPreferenceKey, x -> {
-                        if (x.getThis() == controller) x.returnAndSkip("bluetooth_select_a2dp_lhdc_playback_quality");
+                        if (x.getThis() == controller)
+                            x.returnAndSkip("bluetooth_select_a2dp_lhdc_playback_quality");
                     });
 
                     //controllers.add(new BluetoothLHDCQualityDialogPreferenceController((Context) context, (Lifecycle) lifecycle, (BluetoothA2dpConfigStore) store));
@@ -568,7 +649,8 @@ public class SettingsUIModule extends XposedModule {
 
                     controllers.add(controller);
                     callback.setResult(controllers);
-                } catch (NullPointerException | InvocationTargetException | IllegalAccessException | InstantiationException | NoSuchMethodException e) {
+                } catch (NullPointerException | InvocationTargetException | IllegalAccessException |
+                         InstantiationException | NoSuchMethodException e) {
                     log(TAG + " Exception: ", e);
                 }
             });
@@ -594,7 +676,8 @@ public class SettingsUIModule extends XposedModule {
                     }
                     //mPreference.set(callback.getThis(), lhdcPreference);
                     //hookBefore(getPreferenceKey, x -> x.returnAndSkip("bluetooth_select_a2dp_lhdc_playback_quality"));
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException e) {
+                } catch (IllegalAccessException | IllegalArgumentException |
+                         InvocationTargetException | NullPointerException e) {
                     log(TAG + "Exception: ", e);
                 }
             });
@@ -617,11 +700,12 @@ public class SettingsUIModule extends XposedModule {
                         } else {
                             codecSpecific1Value = LHDC_QUALITY_DEFAULT_MAGIC | LHDC_QUALITY_DEFAULT_INDEX;
                         }
-                        setCodecSpecific1Value.invoke(mBluetoothA2dpConfigStore.get(callback.getThis()),  codecSpecific1Value);
+                        setCodecSpecific1Value.invoke(mBluetoothA2dpConfigStore.get(callback.getThis()), codecSpecific1Value);
                         callback.returnAndSkip(null);
                     }
                     //pref.getClass().getDeclaredMethod("");
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException e) {
+                } catch (IllegalAccessException | IllegalArgumentException |
+                         InvocationTargetException | NullPointerException e) {
                     log(TAG + "Exception: ", e);
                 }
             });
@@ -669,7 +753,8 @@ public class SettingsUIModule extends XposedModule {
                         //}
                         callback.returnAndSkip(selectableIndex);
                     }
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException e) {
+                } catch (IllegalAccessException | IllegalArgumentException |
+                         InvocationTargetException | NullPointerException e) {
                     log(TAG + "Exception: ", e);
                 }
             });
@@ -693,8 +778,7 @@ public class SettingsUIModule extends XposedModule {
                     Method setEnabled = recursiveFindMethod(prefClass, "setEnabled", boolean.class);
 
 
-
-                    Field summaryStrings = recursiveFindField(prefClass,"mSummaryStrings");
+                    Field summaryStrings = recursiveFindField(prefClass, "mSummaryStrings");
                     //Field radioButtonStrings = recursiveFindField(prefClass, "mRadioButtonStrings");
                     //Field radioButtonIds = recursiveFindField(prefClass, "mRadioButtonIds");
                     //Field iCallback = recursiveFindField(prefClass, "mCallback");
@@ -704,7 +788,6 @@ public class SettingsUIModule extends XposedModule {
                     ArrayList<String> mSummaryStrings = (ArrayList<String>) summaryStrings.get(pref);
 
 
-
                     log(TAG + " LHDC Summaries: " + mSummaryStrings);
 
                     if (mSummaryStrings.size() == 0) {
@@ -712,20 +795,21 @@ public class SettingsUIModule extends XposedModule {
                                 R.array.bluetooth_a2dp_codec_lhdc_playback_quality_summaries)));
                     }
 
-                        callback.setThrowable(null);
-                        log(TAG + " in LHDC controller: updateState");
-                        final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
-                        if (currentConfig != null) {
-                            int type = currentConfig.getCodecType();
-                            if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
-                                setEnabled.invoke(preference,true);
-                                refreshSummary.invoke(callback.getThis(), preference);
-                                //setSummary.invoke(preference, getResources().getString(R.string.bluetooth_select_a2dp_codec_lhdc_playback_quality));
-                            } else {
-                                setEnabled.invoke(preference,false);
-                            }
+                    callback.setThrowable(null);
+                    log(TAG + " in LHDC controller: updateState");
+                    final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThis());
+                    if (currentConfig != null) {
+                        int type = currentConfig.getCodecType();
+                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
+                            setEnabled.invoke(preference, true);
+                            refreshSummary.invoke(callback.getThis(), preference);
+                            //setSummary.invoke(preference, getResources().getString(R.string.bluetooth_select_a2dp_codec_lhdc_playback_quality));
+                        } else {
+                            setEnabled.invoke(preference, false);
                         }
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException e) {
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException |
+                         InvocationTargetException | NullPointerException e) {
                     log(TAG + " Exception: ", e);
                 }
             });
@@ -735,7 +819,7 @@ public class SettingsUIModule extends XposedModule {
                     Class<?> prefClass = pref.getClass();
                     Method getRadioButtonGroupId = prefClass.getDeclaredMethod("getRadioButtonGroupId");
                     getRadioButtonGroupId.setAccessible(true);
-                    final int config = (int) callback.getArg(0);
+                    int config = callback.getArg(0);
                     String key = (String) getPreferenceKey.invoke(callback.getThis());
                     if (key.contains("bluetooth_a2dp_ldac_playback_quality")) {
                         log(TAG + " in LDAC controller: convertCfgToBtnIndex: " + config);
@@ -755,7 +839,9 @@ public class SettingsUIModule extends XposedModule {
                         index &= 0xff;
                     }
                     callback.returnAndSkip(index);
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException | NullPointerException | NoSuchMethodException e) {
+                } catch (IllegalAccessException | IllegalArgumentException |
+                         InvocationTargetException | NullPointerException |
+                         NoSuchMethodException e) {
                     log(TAG + "Exception: ", e);
                 }
             });
@@ -777,10 +863,10 @@ public class SettingsUIModule extends XposedModule {
 
                     Method getRadioButtonGroupId = ldacPrefClass.getDeclaredMethod("getRadioButtonGroupId");
                     getRadioButtonGroupId.setAccessible(true);
-                    Method setKey = recursiveFindMethod(ldacPrefClass,"setKey", String.class);
-                    Method getKey = recursiveFindMethod(ldacPrefClass,"getKey");
-                    Method setEnabled = recursiveFindMethod(ldacPrefClass,"setEnabled", boolean.class);
-                    Method setDialogTitle = recursiveFindMethod(ldacPrefClass,"setDialogTitle", CharSequence.class);
+                    Method setKey = recursiveFindMethod(ldacPrefClass, "setKey", String.class);
+                    Method getKey = recursiveFindMethod(ldacPrefClass, "getKey");
+                    Method setEnabled = recursiveFindMethod(ldacPrefClass, "setEnabled", boolean.class);
+                    Method setDialogTitle = recursiveFindMethod(ldacPrefClass, "setDialogTitle", CharSequence.class);
                     //Method setSummary = recursiveFindMethod(ldacPrefClass, "setSummary", CharSequence.class);
 
                     int prefCount = (int) getPreferenceCount.invoke(preferenceScreen);
@@ -791,9 +877,9 @@ public class SettingsUIModule extends XposedModule {
 
                     for (int i = 0; i < prefCount; i++) {
                         Object currPref = getPreference.invoke(preferenceScreen, i);
-                        String title = String.valueOf((CharSequence) getTitle.invoke(currPref));
+                        String title = String.valueOf(getTitle.invoke(currPref));
 
-                        String key = String.valueOf((CharSequence) getKey.invoke(currPref));
+                        String key = String.valueOf(getKey.invoke(currPref));
 
                         log(TAG + " : Pref " + i + " -> " + title + " (" + key + ")");
 
@@ -849,7 +935,8 @@ public class SettingsUIModule extends XposedModule {
 
 
                     hookBefore(getRadioButtonGroupId, x -> {
-                                if (x.getThis() == lhdcQualityPreference) x.returnAndSkip(R.id.bluetooth_lhdc_audio_quality_radio_group);
+                        if (x.getThis() == lhdcQualityPreference)
+                            x.returnAndSkip(R.id.bluetooth_lhdc_audio_quality_radio_group);
                     });
 
                     ArrayList<?> controllers = (ArrayList<?>) mPreferenceControllers.get(callback.getThis());
@@ -871,8 +958,10 @@ public class SettingsUIModule extends XposedModule {
                         mPreference.set(lhdcQualityController, lhdcQualityPreference);
                         displayPreference.invoke(lhdcQualityController, preferenceScreen);
                     }
-                } catch (NullPointerException | InvocationTargetException | IllegalAccessException | /*NoSuchFieldException |*/ InstantiationException | NoSuchMethodException e) {
-                   log(TAG + " Exception: ", e);
+                } catch (NullPointerException | InvocationTargetException |
+                         IllegalAccessException | /*NoSuchFieldException |*/
+                         InstantiationException | NoSuchMethodException e) {
+                    log(TAG + " Exception: ", e);
                 }
 
             });
@@ -958,41 +1047,50 @@ public class SettingsUIModule extends XposedModule {
 
             //BluetoothCodecConfig currentConfig = getCurrentCodecConfig();
 
-        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException /*| IllegalAccessException*/ e) {
+        } catch (ClassNotFoundException | NoSuchFieldException |
+                 NoSuchMethodException /*| IllegalAccessException*/ e) {
             log(TAG + " Exception: ", e);
         }
-        
+
     }
+
     @SuppressWarnings("unused")
-    public void recursivePrintMethods(Class<?> clazz) { recursivePrintMethods(clazz, 0); }
+    public void recursivePrintMethods(Class<?> clazz) {
+        recursivePrintMethods(clazz, 0);
+    }
+
     public void recursivePrintMethods(Class<?> clazz, int level) {
         if (clazz == null) {
-            log(TAG+ " : Done!");
+            log(TAG + " : Done!");
             return;
         }
         log(TAG + " " + " ".repeat(level) + ": Class " + clazz.getCanonicalName());
         for (Method m : clazz.getDeclaredMethods()) {
-            log(TAG + " " + " ".repeat(level+1) + ": Found method " + m.getName());
+            log(TAG + " " + " ".repeat(level + 1) + ": Found method " + m.getName());
         }
         recursivePrintMethods(clazz.getSuperclass(), level + 1);
     }
+
     @SuppressWarnings("unused")
-    public void recursivePrintFields(Class<?> clazz) { recursivePrintFields(clazz, 0); }
+    public void recursivePrintFields(Class<?> clazz) {
+        recursivePrintFields(clazz, 0);
+    }
+
     public void recursivePrintFields(Class<?> clazz, int level) {
         if (clazz == null) {
-            log(TAG+ " : Done!");
+            log(TAG + " : Done!");
             return;
         }
         log(TAG + " " + " ".repeat(level) + ": Class " + clazz.getCanonicalName());
         for (Field f : clazz.getDeclaredFields()) {
-            log(TAG + " " + " ".repeat(level+1) + ": Found field " + f.getName());
+            log(TAG + " " + " ".repeat(level + 1) + ": Found field " + f.getName());
         }
         recursivePrintFields(clazz.getSuperclass(), level + 1);
     }
 
     public Field recursiveFindField(Class<?> clazz, String name) {
         if (clazz == null) {
-            log(TAG+ " : Done!");
+            log(TAG + " : Done!");
             return null;
         }
         for (Field f : clazz.getDeclaredFields()) {
@@ -1007,7 +1105,7 @@ public class SettingsUIModule extends XposedModule {
     /* Sometimes we don't now exact parameters, because the classes might be renamed by OEM. Method names are usually still the same though */
     public Method recursiveFindMethodByName(Class<?> clazz, String name) {
         if (clazz == null) {
-            log(TAG+ " : Not found: " + name);
+            log(TAG + " : Not found: " + name);
             return null;
         }
         for (Method m : clazz.getDeclaredMethods()) {
@@ -1022,27 +1120,27 @@ public class SettingsUIModule extends XposedModule {
     @SuppressWarnings("unused")
     public Class<?> recursiveFindSuperClassByName(Class<?> clazz, String name) {
         if (clazz == null) {
-            log(TAG+ " : Not found: " + name);
+            log(TAG + " : Not found: " + name);
             return null;
         }
         //noinspection ConstantConditions
-        if(clazz.getCanonicalName().endsWith(name)) return clazz;
+        if (clazz.getCanonicalName().endsWith(name)) return clazz;
         return recursiveFindSuperClassByName(clazz.getSuperclass(), name);
     }
 
     @SuppressWarnings("unused")
     public void recursivePrintSuperClass(Class<?> clazz) {
         if (clazz == null) {
-            log(TAG+ " : Done!");
+            log(TAG + " : Done!");
             return;
         }
-        log(TAG+ " : Class " + clazz.getCanonicalName());
+        log(TAG + " : Class " + clazz.getCanonicalName());
         recursivePrintSuperClass(clazz.getSuperclass());
     }
 
-    public Method recursiveFindMethod(Class<?> clazz, String name, Class<?> ... params) {
+    public Method recursiveFindMethod(Class<?> clazz, String name, Class<?>... params) {
         if (clazz == null) {
-            log(TAG+ " : Not found: " + name);
+            log(TAG + " : Not found: " + name);
             return null;
         }
         try {

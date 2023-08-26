@@ -1,5 +1,6 @@
 package ru.kirddos.exta2dp;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 import android.os.Build;
 import android.util.Log;
@@ -42,7 +43,7 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
         return this.id - o.id;
     }
 
-
+    @SuppressLint("NewApi")
     public static SourceCodecType[] getSourceCodecTypes() {
         TreeSet<SourceCodecType> types = new TreeSet<>();
         Field[] fields = BluetoothCodecConfig.class.getDeclaredFields();
@@ -68,7 +69,7 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
         }
         return default_id;
     }
-
+    @SuppressLint("NewApi")
     public static int getQVA() {
         Field[] fields = BluetoothCodecConfig.class.getDeclaredFields();
         for (Field f: fields) {
