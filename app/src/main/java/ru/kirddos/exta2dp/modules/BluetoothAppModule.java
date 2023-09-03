@@ -1,9 +1,17 @@
 package ru.kirddos.exta2dp.modules;
 
 import static ru.kirddos.exta2dp.ConstUtils.*;
+
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.annotations.AfterInvocation;
+import io.github.libxposed.api.annotations.BeforeInvocation;
+import io.github.libxposed.api.annotations.XposedHooker;
+import io.github.libxposed.api.XposedModule;
+
 import ru.kirddos.exta2dp.SourceCodecType;
 
 import androidx.annotation.NonNull;
+
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 import android.bluetooth.BluetoothCodecStatus;
@@ -11,18 +19,49 @@ import android.bluetooth.BluetoothCodecStatus;
 import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
-import io.github.libxposed.api.XposedContext;
-import io.github.libxposed.api.XposedModule;
 
 public class BluetoothAppModule extends XposedModule {
     private static final String TAG = "BluetoothAppModule";
     private static final String BLUETOOTH_PACKAGE = "com.android.bluetooth";
 
-    public BluetoothAppModule(@NonNull XposedContext base, @NonNull ModuleLoadedParam param) {
+    public BluetoothAppModule(@NonNull XposedInterface base, @NonNull ModuleLoadedParam param) {
         super(base, param);
         log(TAG + ": " + param.getProcessName());
     }
+
+    @XposedHooker
+    static class BluetoothHooker implements Hooker {
+        static ConcurrentHashMap<Member, BeforeCallback> beforeCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, AfterCallback> afterCallbacks = new ConcurrentHashMap<>();
+
+        @BeforeInvocation
+        public static Hooker before(BeforeHookCallback callback) {
+            BeforeCallback bc =  beforeCallbacks.get(callback.getMember());
+            return bc == null ? null : bc.before(callback);
+        }
+
+        @AfterInvocation
+        public static void after(AfterHookCallback callback, Hooker state) {
+            AfterCallback ac = afterCallbacks.get(callback.getMember());
+            if (ac != null) ac.after(callback, state);
+        }
+    }
+
+    void hookBefore(Method method, BeforeCallback callback) {
+        assert !BluetoothHooker.beforeCallbacks.containsKey(method);
+        BluetoothHooker.beforeCallbacks.put(method, callback);
+        hook(method, BluetoothHooker.class);
+    }
+
+    void hookAfter(Method method, AfterCallback callback) {
+        assert !BluetoothHooker.afterCallbacks.containsKey(method);
+        BluetoothHooker.afterCallbacks.put(method, callback);
+        hook(method, BluetoothHooker.class);
+    }
+
 
     @SuppressLint("NewApi")
     protected static final int[] CODEC_IDS = {
@@ -48,13 +87,11 @@ public class BluetoothAppModule extends XposedModule {
     public void onPackageLoaded(PackageLoadedParam param) {
         super.onPackageLoaded(param);
         log("onPackageLoaded: " + param.getPackageName());
-        log("main classloader is " + this.getClassLoader());
+        log("main classloader is " + this.getClass().getClassLoader());
         log("param classloader is " + param.getClassLoader());
         log("class classloader is " + SourceCodecType.class.getClassLoader());
-        log("module apk path: " + this.getPackageCodePath());
         log("pid/tid: " + android.os.Process.myPid() + " " + android.os.Process.myTid());
         log("----------");
-
 
 
         if (!param.getPackageName().equals(BLUETOOTH_PACKAGE) || !param.isFirstPackage()) return;
@@ -70,11 +107,11 @@ public class BluetoothAppModule extends XposedModule {
 
             Method sameCodecSpecificParameters = btCodecConfig.getDeclaredMethod("sameCodecSpecificParameters", btCodecConfig);
 
-            hookAfter(sameCodecSpecificParameters, callback -> {
+            hookAfter(sameCodecSpecificParameters, (callback, state) -> {
                 try {
                     boolean same = (boolean) callback.getResult();
                     if (same) {
-                        BluetoothCodecConfig thiz = (BluetoothCodecConfig) callback.getThis();
+                        BluetoothCodecConfig thiz = (BluetoothCodecConfig) callback.getThisObject();
                         BluetoothCodecConfig other = (BluetoothCodecConfig) callback.getArgs()[0];
                         int type = thiz.getCodecType();
                         if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5 || type == SOURCE_CODEC_TYPE_LC3PLUS_HR || type == SOURCE_CODEC_TYPE_FLAC) {
@@ -118,7 +155,7 @@ public class BluetoothAppModule extends XposedModule {
 
             hookBefore(processCodecConfigEvent, callback -> {
                 try {
-                    BluetoothCodecStatus newCodecStatus = callback.getArg(0);
+                    BluetoothCodecStatus newCodecStatus = (BluetoothCodecStatus) callback.getArgs()[0];
                     int new_codec_type = newCodecStatus.getCodecConfig().getCodecType();
                     if (new_codec_type >= SOURCE_CODEC_TYPE_LHDCV2) {
                         Object adapterService = getAdapterService.invoke(null);
@@ -128,7 +165,8 @@ public class BluetoothAppModule extends XposedModule {
                         log(TAG + " processCodecConfigEvent: splitA2dpEnabled = " + save);
                         splitA2dpEnabled.set(vendorObj, false);
                         log(TAG + " processCodecConfigEvent: splitA2dpEnabled = false, calling original method");
-                        callback.invokeOrigin();
+                        Method origin = (Method) callback.getMember();
+                        invokeOrigin(origin, callback.getThisObject(), newCodecStatus);
                         splitA2dpEnabled.set(vendorObj, save);
                         log(TAG + " processCodecConfigEvent: restore splitA2dpEnabled");
                         callback.returnAndSkip(null);
@@ -136,6 +174,7 @@ public class BluetoothAppModule extends XposedModule {
                 } catch (InvocationTargetException | IllegalAccessException e) {
                     log(TAG + " Exception: ", e);
                 }
+                return null;
             });
 
 
@@ -144,7 +183,7 @@ public class BluetoothAppModule extends XposedModule {
             assigned_codec_length.setAccessible(true);
 
 
-            hookAfter(assignCodecConfigPriorities, callback -> {
+            hookAfter(assignCodecConfigPriorities, (callback, state) -> {
                 try {
                     BluetoothCodecConfig[] mCodecConfigPriorities = (BluetoothCodecConfig[]) callback.getResult();
                     int pos = mCodecConfigPriorities.length;
@@ -179,7 +218,7 @@ public class BluetoothAppModule extends XposedModule {
 
                     log(TAG + " assignCodecConfigPriorities: " + Arrays.toString(res));
 
-                    assigned_codec_length.set(callback.getThis(), pos);
+                    assigned_codec_length.set(callback.getThisObject(), pos);
                     callback.setResult(res);
                 } catch (Exception e) {
                     log(TAG + " Exception: ", e);
@@ -203,7 +242,7 @@ public class BluetoothAppModule extends XposedModule {
 
             Field mHandler = adapterService.getDeclaredField("mHandler");
             mHandler.setAccessible(true);
-            Class <?> mHandlerClass = mHandler.getType();
+            Class<?> mHandlerClass = mHandler.getType();
             Field adapterServiceThis = mHandlerClass.getDeclaredField("this$0");
             adapterServiceThis.setAccessible(true);
 
@@ -260,9 +299,9 @@ public class BluetoothAppModule extends XposedModule {
 
             int BREDR_STARTED = bredrStartedField.getInt(null);
 
-            hookAfter(processProfileServiceStateChanged, callback -> {
+            hookAfter(processProfileServiceStateChanged, (callback, state) -> {
                 try {
-                    Object adapter = adapterServiceThis.get(callback.getThis());
+                    Object adapter = adapterServiceThis.get(callback.getThisObject());
                     ArrayList<?> running = (ArrayList<?>) mRunningProfiles.get(adapter);
                     ArrayList<?> registered = (ArrayList<?>) mRegisteredProfiles.get(adapter);
                     log(TAG + " processProfileServiceStateChanged: state " + callback.getArgs()[1] + ", running: " + running + ", registered: " + registered);
@@ -270,7 +309,7 @@ public class BluetoothAppModule extends XposedModule {
                     Class<?> config = param.getClassLoader().loadClass("com.android.bluetooth.btservice.Config");
                     Method getSupportedProfiles = config.getDeclaredMethod("getSupportedProfiles");
                     getSupportedProfiles.setAccessible(true);
-                    int amountProfilesSupported = ((Class<?>[])getSupportedProfiles.invoke(null)).length;
+                    int amountProfilesSupported = ((Class<?>[]) getSupportedProfiles.invoke(null)).length;
                     log(TAG + " processProfileServiceStateChanged: supported " + amountProfilesSupported);
                     if (registered.size() == amountProfilesSupported) {
                         log(TAG + " processProfileServiceStateChanged: registered all supported profiles");
@@ -284,9 +323,9 @@ public class BluetoothAppModule extends XposedModule {
                             updateUuids.invoke(adapter);
                             setBluetoothClassFromConfig.invoke(adapter);
                             initProfileServices.invoke(adapter);
-                            getAdapterPropertyNative.invoke(adapter,BT_PROPERTY_LOCAL_IO_CAPS);//AbstractionLayer.BT_PROPERTY_LOCAL_IO_CAPS;
-                            getAdapterPropertyNative.invoke(adapter,BT_PROPERTY_LOCAL_IO_CAPS_BLE);//AbstractionLayer.BT_PROPERTY_LOCAL_IO_CAPS_BLE;
-                            getAdapterPropertyNative.invoke(adapter,BT_PROPERTY_DYNAMIC_AUDIO_BUFFER);//AbstractionLayer.BT_PROPERTY_DYNAMIC_AUDIO_BUFFER;
+                            getAdapterPropertyNative.invoke(adapter, BT_PROPERTY_LOCAL_IO_CAPS);//AbstractionLayer.BT_PROPERTY_LOCAL_IO_CAPS;
+                            getAdapterPropertyNative.invoke(adapter, BT_PROPERTY_LOCAL_IO_CAPS_BLE);//AbstractionLayer.BT_PROPERTY_LOCAL_IO_CAPS_BLE;
+                            getAdapterPropertyNative.invoke(adapter, BT_PROPERTY_DYNAMIC_AUDIO_BUFFER);//AbstractionLayer.BT_PROPERTY_DYNAMIC_AUDIO_BUFFER;
 
                             sendMessage.invoke(mAdapterStateMachine.get(adapter), BREDR_STARTED);//AdapterState.BREDR_STARTED
 
@@ -299,26 +338,28 @@ public class BluetoothAppModule extends XposedModule {
                                     setPowerBackoff.invoke(mVendor.get(adapter), false);
                                 }
                             }
-                        } else{
+                        } else {
                             log(TAG + " processProfileServiceStateChanged: SOME SUPPORTED PROFILES ARE NOT RUNNING! FIXME, BREDR will fail with timeout");
                         }
                     }
                 } catch (IllegalAccessException | ClassNotFoundException |
-                         InvocationTargetException | NullPointerException | NoSuchMethodException e) {
+                         InvocationTargetException | NullPointerException |
+                         NoSuchMethodException e) {
                     log(TAG + " Exception: ", e);
                 }
             });
-            hookAfter(startProfileServices, callback -> {
+            hookAfter(startProfileServices, (callback, state) -> {
                 log(TAG + " startProfileServices");
                 try {
-                    log(TAG + " startProfileServices: " + mRunningProfiles.get(callback.getThis()));
-                    log(TAG + " startProfileServices: " + mRegisteredProfiles.get(callback.getThis()));
+                    log(TAG + " startProfileServices: " + mRunningProfiles.get(callback.getThisObject()));
+                    log(TAG + " startProfileServices: " + mRegisteredProfiles.get(callback.getThisObject()));
                 } catch (IllegalAccessException e) {
                     log(TAG + " Exception: ", e);
                 }
             });
-        } catch (ClassNotFoundException | NoSuchMethodException | NoSuchFieldException|
-                 IllegalAccessException | NullPointerException /*  | InvocationTargetException*/ e) {
+        } catch (ClassNotFoundException | NoSuchMethodException | NoSuchFieldException |
+                 IllegalAccessException |
+                 NullPointerException /*  | InvocationTargetException*/ e) {
             log(TAG + " Exception: ", e);
         }
 
@@ -328,12 +369,14 @@ public class BluetoothAppModule extends XposedModule {
         try {
             Class<?> cc = cl.loadClass(name);
             Method ccStart = cc.getDeclaredMethod("start");
-            hookBefore(ccStart, callback -> callback.returnAndSkip(false));
-        } catch (ClassNotFoundException | NoSuchMethodException e){//| NoSuchFieldException e) {
+            hookBefore(ccStart, callback -> {
+                callback.returnAndSkip(false);
+                return null;
+            });
+        } catch (ClassNotFoundException | NoSuchMethodException e) {//| NoSuchFieldException e) {
             log(TAG + " Exception: ", e);
         }
     }
-
 
     native void setCodecIds(int[] codecIds);
 }
