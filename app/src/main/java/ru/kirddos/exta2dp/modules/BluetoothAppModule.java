@@ -19,7 +19,6 @@ import android.bluetooth.BluetoothCodecStatus;
 import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -34,32 +33,52 @@ public class BluetoothAppModule extends XposedModule {
 
     @XposedHooker
     static class BluetoothHooker implements Hooker {
-        static ConcurrentHashMap<Member, BeforeCallback> beforeCallbacks = new ConcurrentHashMap<>();
-        static ConcurrentHashMap<Member, AfterCallback> afterCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<BeforeCallback>> beforeCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<AfterCallback>> afterCallbacks = new ConcurrentHashMap<>();
 
         @BeforeInvocation
         public static Hooker before(BeforeHookCallback callback) {
-            BeforeCallback bc =  beforeCallbacks.get(callback.getMember());
-            return bc == null ? null : bc.before(callback);
+            ArrayList<BeforeCallback> abc =  beforeCallbacks.get(callback.getMember());
+            if (abc == null) return null;
+            Hooker result = null;
+            for (var bc: abc) {
+                result = bc.before(callback);
+            }
+            return result;
         }
 
         @AfterInvocation
         public static void after(AfterHookCallback callback, Hooker state) {
-            AfterCallback ac = afterCallbacks.get(callback.getMember());
-            if (ac != null) ac.after(callback, state);
+            ArrayList<AfterCallback> aac = afterCallbacks.get(callback.getMember());
+            if (aac == null) return;
+            for (var ac: aac) {
+                ac.after(callback, state);
+            }
         }
     }
 
     void hookBefore(Method method, BeforeCallback callback) {
-        assert !BluetoothHooker.beforeCallbacks.containsKey(method);
-        BluetoothHooker.beforeCallbacks.put(method, callback);
-        hook(method, BluetoothHooker.class);
+        var abc = BluetoothHooker.beforeCallbacks.get(method);
+        if (abc == null) {
+            hook(method, BluetoothHooker.class);
+            abc = new ArrayList<>();
+            abc.add(callback);
+            BluetoothHooker.beforeCallbacks.put(method, abc);
+        } else {
+            abc.add(callback);
+        }
     }
 
     void hookAfter(Method method, AfterCallback callback) {
-        assert !BluetoothHooker.afterCallbacks.containsKey(method);
-        BluetoothHooker.afterCallbacks.put(method, callback);
-        hook(method, BluetoothHooker.class);
+        var aac = BluetoothHooker.afterCallbacks.get(method);
+        if (aac == null) {
+            hook(method, BluetoothHooker.class);
+            aac = new ArrayList<>();
+            aac.add(callback);
+            BluetoothHooker.afterCallbacks.put(method, aac);
+        } else {
+            aac.add(callback);
+        }
     }
 
 
@@ -189,8 +208,8 @@ public class BluetoothAppModule extends XposedModule {
                     int pos = mCodecConfigPriorities.length;
 
                     if (pos >= 9) {
-                        log(TAG + " assignCodecConfigPriorities: Your device seems to have LHDC already, handle it differently");
-                        return;
+                        log(TAG + " assignCodecConfigPriorities: Your device seems to have LHDC already, maybe we should handle it differently?");
+                        //return;
                     }
 
                     BluetoothCodecConfig[] res = new BluetoothCodecConfig[pos + 5]; // LHDC 2, 3/4, 5 and LC3plus HR/FLAC for now

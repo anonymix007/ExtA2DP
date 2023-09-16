@@ -2,7 +2,7 @@ package ru.kirddos.exta2dp;
 
 public class ConstUtils {
 
-    public static final int SOURCE_QVA_CODEC_TYPE_MAX_EXTA2DP = 14;
+    //public static final int SOURCE_QVA_CODEC_TYPE_MAX_EXTA2DP = 14;
 
     public static final int SOURCE_QVA_CODEC_TYPE_MAX = SourceCodecType.getQVA();
 
@@ -24,9 +24,8 @@ public class ConstUtils {
     public static final int SOURCE_CODEC_TYPE_APTX_TWSP = SourceCodecType.getIdByName("APTX_TWSP");
     public static final int SOURCE_CODEC_TYPE_APTX_ADAPTIVE = SourceCodecType.getIdByName("APTX_ADAPTIVE");
 
-    public static final int AUDIO_FORMAT_LDAC = 0x23000000;
     public static final int AUDIO_FORMAT_LHDC = 0x28000000;
-    public static final int AUDIO_FORMAT_LHDC_LL = 0x29000000;
+    //public static final int AUDIO_FORMAT_LHDC_LL = 0x29000000;
 
     public static final int AUDIO_FORMAT_FLAC = 0x1B000000;
     public static final int AUDIO_FORMAT_LC3 = 0x2B000000;
@@ -34,7 +33,6 @@ public class ConstUtils {
 
     public static final int FLAC_STEREO_MONO_MASK = 0xF;
     public static final int FLAC_STEREO = 0x2;
-    public static final int FLAC_DEFAULT_VALUE = FLAC_STEREO;
     public static final int FLAC_MONO = 0x1;
 
     // In standard case, low0 is available
@@ -46,4 +44,22 @@ public class ConstUtils {
     public static final int LHDC_QUALITY_DEFAULT_MAGIC = 0x8000;
     public static final int LHDC_QUALITY_DEFAULT_INDEX = (5 - lhdc_quality_index_adjust_offset);
     public static final int LHDC_QUALITY_DEFAULT_MAX_INDEX = (9 - lhdc_quality_index_adjust_offset); //0~9
+
+
+    public static String getCustomCodecName(int type) {
+        if (type == SOURCE_CODEC_TYPE_LHDCV2) {
+            return "LHDC V2";
+        } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
+            return "LHDC V3";
+        } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
+           return "LHDC V5";
+        } else if (type == SOURCE_CODEC_TYPE_LC3PLUS_HR) {
+            return "LC3plus HR";
+        } else if (type == SOURCE_CODEC_TYPE_FLAC) {
+            return "FLAC";
+        } else {
+            return null;
+        }
+    }
+
 }

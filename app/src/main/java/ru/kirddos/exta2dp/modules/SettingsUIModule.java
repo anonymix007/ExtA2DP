@@ -14,6 +14,7 @@ import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.StringBuilderPrinter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -62,7 +63,7 @@ public class SettingsUIModule extends XposedModule {
     private static final String TAG = "SettingsUIModule";
 
     private static final String SETTINGS_PACKAGE = "com.android.settings";
-    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi", "NewApi", "SoonBlockedPrivateApi"})
+    @SuppressLint({"DiscouragedPrivateApi", "PrivateApi", "NewApi", "SoonBlockedPrivateApi", "SdCardPath"})
     @SuppressWarnings("deprecation")
     public SettingsUIModule(@NonNull XposedInterface base, @NonNull ModuleLoadedParam param) {
         super(base, param);
@@ -79,12 +80,55 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " Constructor " + ctor);
             var atc = cl.loadClass("android.app.ActivityThread");
             Method currentActivityThread = atc.getDeclaredMethod("currentActivityThread");
-             var cic = cl.loadClass("android.content.res.CompatibilityInfo");
+            var cic = cl.loadClass("android.content.res.CompatibilityInfo");
             Method getPackageInfoNoCheck = atc.getDeclaredMethod("getPackageInfoNoCheck", ApplicationInfo.class, cic);
             var at = currentActivityThread.invoke(null);
             log(TAG + " ActivityThread: " + at);
-            String apkPath = ai.sourceDir;
+
+
+
+            // This is dirty hack, not sure if it's needed, but it failed previously
+            String apkPath = ai.sourceDir == null ? ai.publicSourceDir : ai.sourceDir;
+
             log(TAG + " Apk path: " + apkPath);
+
+            {
+                StringBuilder sb = new StringBuilder();
+                StringBuilderPrinter sbp = new StringBuilderPrinter(sb);
+                ai.dump(sbp, "");
+                log(TAG + " ApplicationInfo: " + sb);
+
+                log(TAG + " sourceDir: " + ai.sourceDir);
+                log(TAG + " publicSourceDir: " + ai.publicSourceDir);
+            }
+
+            // This is even more dirty hack than previous one
+            try {
+                Field apkField = cl.getClass().getDeclaredField("apk");
+                apkField.setAccessible(true);
+                if (apkField.get(cl) instanceof String apk) {
+                    log(TAG + " apk path from classloader " + apk);
+                    if (apkPath == null) {
+                        apkPath = apk;
+                    }
+                }
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                log(TAG + " Exception", e);
+            }
+
+            assert apkPath != null;
+
+            // And few other dirty hacks
+            if (ai.sourceDir == null) {
+                ai.sourceDir = apkPath;
+            }
+            if (ai.publicSourceDir == null) {
+                ai.publicSourceDir = apkPath;
+            }
+            if (ai.dataDir == null) {
+                ai.dataDir = "/data/user/0/" + ai.packageName;
+            }
+
             var lac = cl.loadClass("android.app.LoadedApk");
             ctor.setAccessible(true);
             var loadedApk = getPackageInfoNoCheck.invoke(at, ai, null);
@@ -133,6 +177,7 @@ public class SettingsUIModule extends XposedModule {
 
 
             AssetManager am = AssetManager.class.getDeclaredConstructor().newInstance();
+            //noinspection JavaReflectionMemberAccess
             Method addAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
             addAssetPath.setAccessible(true);
             addAssetPath.invoke(am, apkPath);
@@ -145,7 +190,6 @@ public class SettingsUIModule extends XposedModule {
         } catch (Exception e) {
             log(TAG + " Exception: ", e);
         }
-
     }
 
     private Context mBase = null;
@@ -170,32 +214,52 @@ public class SettingsUIModule extends XposedModule {
     }
     @XposedHooker
     static class SettingsHooker implements Hooker {
-        static ConcurrentHashMap<Member, BeforeCallback> beforeCallbacks = new ConcurrentHashMap<>();
-        static ConcurrentHashMap<Member, AfterCallback> afterCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<BeforeCallback>> beforeCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<AfterCallback>> afterCallbacks = new ConcurrentHashMap<>();
 
         @BeforeInvocation
         public static Hooker before(BeforeHookCallback callback) {
-            BeforeCallback bc =  beforeCallbacks.get(callback.getMember());
-            return bc == null ? null : bc.before(callback);
+            ArrayList<BeforeCallback> abc =  beforeCallbacks.get(callback.getMember());
+            if (abc == null) return null;
+            Hooker result = null;
+            for (var bc: abc) {
+                result = bc.before(callback);
+            }
+            return result;
         }
 
         @AfterInvocation
         public static void after(AfterHookCallback callback, Hooker state) {
-            AfterCallback ac = afterCallbacks.get(callback.getMember());
-            if (ac != null) ac.after(callback, state);
+            ArrayList<AfterCallback> aac = afterCallbacks.get(callback.getMember());
+            if (aac == null) return;
+            for (var ac: aac) {
+                ac.after(callback, state);
+            }
         }
     }
 
     void hookBefore(Method method, BeforeCallback callback) {
-        assert !SettingsHooker.beforeCallbacks.containsKey(method);
-        SettingsHooker.beforeCallbacks.put(method, callback);
-        hook(method, SettingsHooker.class);
+        var abc = SettingsHooker.beforeCallbacks.get(method);
+        if (abc == null) {
+            hook(method, SettingsHooker.class);
+            abc = new ArrayList<>();
+            abc.add(callback);
+            SettingsHooker.beforeCallbacks.put(method, abc);
+        } else {
+            abc.add(callback);
+        }
     }
 
     void hookAfter(Method method, AfterCallback callback) {
-        assert !SettingsHooker.afterCallbacks.containsKey(method);
-        SettingsHooker.afterCallbacks.put(method, callback);
-        hook(method, SettingsHooker.class);
+        var aac = SettingsHooker.afterCallbacks.get(method);
+        if (aac == null) {
+            hook(method, SettingsHooker.class);
+            aac = new ArrayList<>();
+            aac.add(callback);
+            SettingsHooker.afterCallbacks.put(method, aac);
+        } else {
+            aac.add(callback);
+        }
     }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
@@ -769,6 +833,9 @@ public class SettingsUIModule extends XposedModule {
             Method convertCfgToBtnIndex = ldacPrefControl.getDeclaredMethod("convertCfgToBtnIndex", int.class);
 
             Method setCodecSpecific1Value = btA2dpConfigStore.getDeclaredMethod("setCodecSpecific1Value", long.class);
+            Method setCodecType = btA2dpConfigStore.getDeclaredMethod("setCodecType", int.class);
+            setCodecSpecific1Value.setAccessible(true);
+            setCodecType.setAccessible(true);
             Method displayPreference = ldacPrefControl.getDeclaredMethod("displayPreference", preferenceScreenClass);
             Method getPreferenceKey = ldacPrefControl.getDeclaredMethod("getPreferenceKey");
             Method refreshSummary = recursiveFindMethodByName(ldacPrefControl, "refreshSummary"); //  Preference once again
@@ -805,15 +872,6 @@ public class SettingsUIModule extends XposedModule {
             });
             hookBefore(displayPreference, callback -> {
                 try {
-                    //Object preferenceScreen = callback.getArgs()[0];
-                    //Object lhdcPreference = findPreference.invoke(preferenceScreen, "bluetooth_select_a2dp_lhdc_playback_quality");
-
-                    //log(TAG + " LHDC Preference: " + lhdcPreference);
-
-                    //final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThisObject());
-                    //if (currentConfig != null && currentConfig.getCodecType() == BluetoothCodecConfig.SOURCE_CODEC_TYPE_LDAC) {
-                    //    return;
-                    //}
                     String key = (String) getPreferenceKey.invoke(callback.getThisObject());
                     if (key.contains("bluetooth_select_a2dp_lhdc_playback_quality")) {
                         log(TAG + " We're now LHDC controller!");
@@ -844,12 +902,23 @@ public class SettingsUIModule extends XposedModule {
                     String key = (String) getPreferenceKey.invoke(callback.getThisObject());
                     if (key.contains("bluetooth_select_a2dp_lhdc_playback_quality")) {
                         log(TAG + " in LHDC controller: writeConfigurationValues");
+                        final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThisObject());
+                        int type = currentConfig == null ? -1 : currentConfig.getCodecType();
+                        log(TAG + " writeConfigurationValues: Codec type " + type + " (" + getCustomCodecName(type) + ")");
                         long codecSpecific1Value;
                         if (index <= LHDC_QUALITY_DEFAULT_MAX_INDEX) {
                             codecSpecific1Value = LHDC_QUALITY_DEFAULT_MAGIC | (index + lhdc_quality_index_adjust_offset);
                         } else {
                             codecSpecific1Value = LHDC_QUALITY_DEFAULT_MAGIC | LHDC_QUALITY_DEFAULT_INDEX;
                         }
+                        if (type != SOURCE_CODEC_TYPE_LHDCV2 && type != SOURCE_CODEC_TYPE_LHDCV3 && type != SOURCE_CODEC_TYPE_LHDCV5) {
+                            // Assume LHDC V3
+                            // This probably needs a better fix, but here we are
+                            log(TAG + " writeConfigurationValues: Set codec type to LHDC V3");
+                            type = SOURCE_CODEC_TYPE_LHDCV3;
+                        }
+
+                        setCodecType.invoke(mBluetoothA2dpConfigStore.get(callback.getThisObject()), type);
                         setCodecSpecific1Value.invoke(mBluetoothA2dpConfigStore.get(callback.getThisObject()), codecSpecific1Value);
                         callback.returnAndSkip(null);
                     }
@@ -952,6 +1021,7 @@ public class SettingsUIModule extends XposedModule {
                     final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThisObject());
                     if (currentConfig != null) {
                         int type = currentConfig.getCodecType();
+                        log(TAG + " updateState: Codec type " + type + " (" + getCustomCodecName(type) + ")");
                         if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
                             setEnabled.invoke(preference, true);
                             refreshSummary.invoke(callback.getThisObject(), preference);
@@ -959,6 +1029,8 @@ public class SettingsUIModule extends XposedModule {
                         } else {
                             setEnabled.invoke(preference, false);
                         }
+                    } else {
+                        setEnabled.invoke(preference, false);
                     }
                 } catch (IllegalAccessException | IllegalArgumentException |
                          InvocationTargetException | NullPointerException e) {
@@ -985,8 +1057,7 @@ public class SettingsUIModule extends XposedModule {
 
                     log(TAG + " in LHDC controller: convertCfgToBtnIndex");
                     int index = config;
-                    int tmp = config & LHDC_QUALITY_DEFAULT_TAG;  //0xC000
-                    if (tmp != LHDC_QUALITY_DEFAULT_MAGIC) {  //0x8000
+                    if ((config & LHDC_QUALITY_DEFAULT_TAG) != LHDC_QUALITY_DEFAULT_MAGIC) {
                         index = 0;
                     } else {
                         index &= 0xff;
@@ -1003,13 +1074,6 @@ public class SettingsUIModule extends XposedModule {
                 try {
                     //Bundle savedInstanceState = (Bundle) callback.getArgs()[0];
                     Object preferenceScreen = getPreferenceScreen.invoke(callback.getThisObject());
-                    //Class<?> preferenceScreenClass = preferenceScreen.getClass();
-                    //PreferenceScreen x;
-
-                    //p
-
-                    //Method findPreference = preferenceScreenClass.getDeclaredMethod("findPreference", CharSequence.class);
-                    //findPreference.setAccessible(true);
 
                     Object ldacQualityPreference = findPreference.invoke(preferenceScreen, "bluetooth_a2dp_ldac_playback_quality");
 
@@ -1112,6 +1176,7 @@ public class SettingsUIModule extends XposedModule {
                     if (lhdcQualityController != null) {
                         mPreference.set(lhdcQualityController, lhdcQualityPreference);
                         displayPreference.invoke(lhdcQualityController, preferenceScreen);
+                        updateState.invoke(lhdcQualityController, lhdcQualityPreference);
                     }
                 } catch (NullPointerException | InvocationTargetException |
                          IllegalAccessException | /*NoSuchFieldException |*/
@@ -1256,7 +1321,7 @@ public class SettingsUIModule extends XposedModule {
         return recursiveFindField(clazz.getSuperclass(), name);
     }
 
-    /* Sometimes we don't now exact parameters, because the classes might be renamed by OEM. Method names are usually still the same though */
+    /* Sometimes we don't know exact parameters, because the classes might be renamed by OEM. Method names are usually still the same though */
     public Method recursiveFindMethodByName(Class<?> clazz, String name) {
         if (clazz == null) {
             log(TAG + " : Not found: " + name);
@@ -1301,7 +1366,8 @@ public class SettingsUIModule extends XposedModule {
             Method res = clazz.getDeclaredMethod(name, params);
             res.setAccessible(true);
             return res;
-        } catch (NoSuchMethodException e) { // Maybe it's in superclass?
+        } catch (NoSuchMethodException e) {
+            // Check superclass
             return recursiveFindMethod(clazz.getSuperclass(), name, params);
         }
     }

@@ -9,7 +9,7 @@ import ru.kirddos.exta2dp.SourceCodecType;
 
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
-import java.util.Objects;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 import android.annotation.SuppressLint;
@@ -28,32 +28,53 @@ public class SystemFrameworkModule extends XposedModule {
 
     @XposedHooker
     static class FrameworkHooker implements Hooker {
-        static ConcurrentHashMap<Member, BeforeCallback> beforeCallbacks = new ConcurrentHashMap<>();
-        static ConcurrentHashMap<Member, AfterCallback> afterCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<BeforeCallback>> beforeCallbacks = new ConcurrentHashMap<>();
+        static ConcurrentHashMap<Member, ArrayList<AfterCallback>> afterCallbacks = new ConcurrentHashMap<>();
 
         @BeforeInvocation
         public static Hooker before(BeforeHookCallback callback) {
-            BeforeCallback bc =  beforeCallbacks.get(callback.getMember());
-            return bc == null ? null : bc.before(callback);
+            ArrayList<BeforeCallback> abc =  beforeCallbacks.get(callback.getMember());
+            if (abc == null) return null;
+            Hooker result = null;
+            for (var bc: abc) {
+                result = bc.before(callback);
+            }
+            return result;
         }
 
         @AfterInvocation
         public static void after(AfterHookCallback callback, Hooker state) {
-            AfterCallback ac = afterCallbacks.get(callback.getMember());
-            if (ac != null) ac.after(callback, state);
+            ArrayList<AfterCallback> aac = afterCallbacks.get(callback.getMember());
+            if (aac == null) return;
+            for (var ac: aac) {
+                ac.after(callback, state);
+            }
         }
     }
 
     void hookBefore(Method method, BeforeCallback callback) {
-        assert !FrameworkHooker.beforeCallbacks.containsKey(method);
-        FrameworkHooker.beforeCallbacks.put(method, callback);
-        hook(method, FrameworkHooker.class);
+        var abc = FrameworkHooker.beforeCallbacks.get(method);
+        if (abc == null) {
+            hook(method, FrameworkHooker.class);
+            abc = new ArrayList<>();
+            abc.add(callback);
+            FrameworkHooker.beforeCallbacks.put(method, abc);
+        } else {
+            abc.add(callback);
+        }
     }
 
+    @SuppressWarnings("unused")
     void hookAfter(Method method, AfterCallback callback) {
-        assert !FrameworkHooker.afterCallbacks.containsKey(method);
-        FrameworkHooker.afterCallbacks.put(method, callback);
-        hook(method, FrameworkHooker.class);
+        var aac = FrameworkHooker.afterCallbacks.get(method);
+        if (aac == null) {
+            hook(method, FrameworkHooker.class);
+            aac = new ArrayList<>();
+            aac.add(callback);
+            FrameworkHooker.afterCallbacks.put(method, aac);
+        } else {
+            aac.add(callback);
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -67,24 +88,11 @@ public class SystemFrameworkModule extends XposedModule {
             hookBefore(getCodecName, callback -> {
 
                 int type = (int) callback.getArgs()[0];
-                String name;
                 //log(TAG + " BluetoothCodecConfig: getCodecName");
-
-                if (type == SOURCE_CODEC_TYPE_LHDCV2) {
-                    name = "LHDC V2";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV3) {
-                    name = "LHDC V3";
-                } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
-                    name = "LHDC V5";
-                } else if (type == SOURCE_CODEC_TYPE_LC3PLUS_HR) {
-                    name = "LC3plus HR";
-                } else if (type == SOURCE_CODEC_TYPE_FLAC) {
-                    name = "FLAC";
-                } else {
-                    return null;
+                String name = getCustomCodecName(type);
+                if (name != null) {
+                    callback.returnAndSkip(name);
                 }
-
-                callback.returnAndSkip(name);
                 return null;
             });
         } catch (ClassNotFoundException | NoSuchMethodException | NullPointerException e) {
