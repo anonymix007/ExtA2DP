@@ -26,6 +26,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
@@ -70,6 +71,9 @@ public class SettingsUIModule extends XposedModule {
         log(TAG + " : " + param.getProcessName());
         ApplicationInfo ai = base.getApplicationInfo();
         log(TAG + " " + ai);
+        if (!param.getProcessName().equals(SETTINGS_PACKAGE)) {
+            return;
+        }
         // This is dirty hack to support new LSPosed
         // It should've been done inside the framework, but here we are
         try {
@@ -85,8 +89,6 @@ public class SettingsUIModule extends XposedModule {
             var at = currentActivityThread.invoke(null);
             log(TAG + " ActivityThread: " + at);
 
-
-
             // This is dirty hack, not sure if it's needed, but it failed previously
             String apkPath = ai.sourceDir == null ? ai.publicSourceDir : ai.sourceDir;
 
@@ -100,9 +102,12 @@ public class SettingsUIModule extends XposedModule {
 
                 log(TAG + " sourceDir: " + ai.sourceDir);
                 log(TAG + " publicSourceDir: " + ai.publicSourceDir);
+                log(TAG + " nativeLibraryDir: " + ai.nativeLibraryDir);
             }
 
             // This is even more dirty hack than previous one
+
+            String libDir = "";
             try {
                 Field apkField = cl.getClass().getDeclaredField("apk");
                 apkField.setAccessible(true);
@@ -112,7 +117,19 @@ public class SettingsUIModule extends XposedModule {
                         apkPath = apk;
                     }
                 }
-            } catch (NoSuchFieldException | IllegalAccessException e) {
+                Field nativeLibraryDirsField = cl.getClass().getDeclaredField("nativeLibraryDirs");
+                nativeLibraryDirsField.setAccessible(true);
+                //noinspection unchecked
+                List<File> nativeLibraryDirs = (List<File>) nativeLibraryDirsField.get(cl);
+                log(TAG + " native lib dirs from classloader: " + nativeLibraryDirs);
+                if (nativeLibraryDirs != null) {
+                    for (var dir : nativeLibraryDirs) {
+                        if (dir.getName().contains(ai.packageName)) {
+                            libDir = dir.getName();
+                        }
+                    }
+                }
+            } catch (NoSuchFieldException | IllegalAccessException | NullPointerException | ClassCastException e) {
                 log(TAG + " Exception", e);
             }
 
@@ -120,13 +137,20 @@ public class SettingsUIModule extends XposedModule {
 
             // And few other dirty hacks
             if (ai.sourceDir == null) {
+                log(TAG + " : Applied hack for sourceDir");
                 ai.sourceDir = apkPath;
             }
             if (ai.publicSourceDir == null) {
                 ai.publicSourceDir = apkPath;
+                log(TAG + " : Applied hack for publicSourceDir");
             }
             if (ai.dataDir == null) {
                 ai.dataDir = "/data/user/0/" + ai.packageName;
+                log(TAG + " : Applied hack for dataDir");
+            }
+            if (ai.nativeLibraryDir == null) {
+                ai.nativeLibraryDir = libDir;
+                log(TAG + " : Applied hack for nativeLibraryDir");
             }
 
             var lac = cl.loadClass("android.app.LoadedApk");
@@ -173,8 +197,6 @@ public class SettingsUIModule extends XposedModule {
                     SettingsUIModule.this.setTheme(resid);
                 }
             });
-
-
 
             AssetManager am = AssetManager.class.getDeclaredConstructor().newInstance();
             //noinspection JavaReflectionMemberAccess
@@ -1283,9 +1305,9 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " : Done!");
             return;
         }
-        log(TAG + " " + " ".repeat(level) + ": Class " + clazz.getCanonicalName());
+        log(TAG + " " + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
         for (Method m : clazz.getDeclaredMethods()) {
-            log(TAG + " " + " ".repeat(level + 1) + ": Found method " + m.getName());
+            log(TAG + " " + " ".repeat(level + 1) + " : Found method " + m.getName());
         }
         recursivePrintMethods(clazz.getSuperclass(), level + 1);
     }
@@ -1300,9 +1322,9 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " : Done!");
             return;
         }
-        log(TAG + " " + " ".repeat(level) + ": Class " + clazz.getCanonicalName());
+        log(TAG + " " + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
         for (Field f : clazz.getDeclaredFields()) {
-            log(TAG + " " + " ".repeat(level + 1) + ": Found field " + f.getName());
+            log(TAG + " " + " ".repeat(level + 1) + " : Found field " + f.getName());
         }
         recursivePrintFields(clazz.getSuperclass(), level + 1);
     }

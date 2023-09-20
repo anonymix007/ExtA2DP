@@ -28,7 +28,7 @@ public class BluetoothAppModule extends XposedModule {
 
     public BluetoothAppModule(@NonNull XposedInterface base, @NonNull ModuleLoadedParam param) {
         super(base, param);
-        log(TAG + ": " + param.getProcessName());
+        log(TAG + " : " + param.getProcessName());
     }
 
     @XposedHooker

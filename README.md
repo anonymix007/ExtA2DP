@@ -1,7 +1,8 @@
 ## Extended A2DP
-[LSPosed](https://github.com/LSPosed/LSPosed) module to add A2DP codecs into Android ROMs.
+The [LSPosed](https://github.com/LSPosed/LSPosed) module everyone have been waiting for.
+Device vendor decided to only include basic CLO/AOSP codecs? This module solves that problem once and for all.
 
-### Installation
+## Installation
 1. Install LSPosed Manager, Magisk companion module and ExtA2DP.
 2. Reboot.
 3. Enable ExtA2DP in LSPosed Manager and reboot once again.
@@ -12,7 +13,8 @@ Works on Red Magic 8 Pro and on some other devices.
 ### Supported Versions
 Android 13 (maybe 14?)
 
-LSPosed v1.9.1 (6997)
+LSPosed v1.9.1 (6998)
+**Debug version is REQUIRED for now**
 
 ### Hardware requirements
 Relatively fresh Snapdragon SoC and CLO ROM.

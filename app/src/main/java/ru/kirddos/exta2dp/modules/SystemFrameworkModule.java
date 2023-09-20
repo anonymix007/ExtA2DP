@@ -23,7 +23,7 @@ public class SystemFrameworkModule extends XposedModule {
 
     public SystemFrameworkModule(@NonNull XposedInterface base, @NonNull ModuleLoadedParam param) {
         super(base, param);
-        log(TAG + ": " + param.getProcessName());
+        log(TAG + " : " + param.getProcessName());
     }
 
     @XposedHooker
