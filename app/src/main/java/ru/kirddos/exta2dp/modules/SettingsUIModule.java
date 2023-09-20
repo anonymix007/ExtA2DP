@@ -107,7 +107,7 @@ public class SettingsUIModule extends XposedModule {
 
             // This is even more dirty hack than previous one
 
-            String libDir = "";
+            String libDir = ai.nativeLibraryDir;
             try {
                 Field apkField = cl.getClass().getDeclaredField("apk");
                 apkField.setAccessible(true);
@@ -120,12 +120,14 @@ public class SettingsUIModule extends XposedModule {
                 Field nativeLibraryDirsField = cl.getClass().getDeclaredField("nativeLibraryDirs");
                 nativeLibraryDirsField.setAccessible(true);
                 //noinspection unchecked
-                List<File> nativeLibraryDirs = (List<File>) nativeLibraryDirsField.get(cl);
-                log(TAG + " native lib dirs from classloader: " + nativeLibraryDirs);
-                if (nativeLibraryDirs != null) {
+                List<File> nativeLibraryDirs = new ArrayList<>();
+                Object v = nativeLibraryDirsField.get(cl);
+                if (v != null && nativeLibraryDirs.getClass().isAssignableFrom(v.getClass())) {
+                    nativeLibraryDirs = (List<File>) v;
+                    log(TAG + " native lib dirs from classloader: " + nativeLibraryDirs);
                     for (var dir : nativeLibraryDirs) {
-                        if (dir.getName().contains(ai.packageName)) {
-                            libDir = dir.getName();
+                        if (libDir == null && dir.getAbsolutePath().contains(ai.packageName)) {
+                            libDir = dir.getAbsolutePath();
                         }
                     }
                 }
@@ -133,24 +135,55 @@ public class SettingsUIModule extends XposedModule {
                 log(TAG + " Exception", e);
             }
 
+            if (apkPath == null || libDir == null) {
+                // It's probably release version of LSPosed, let's try relying on the types
+                log(TAG + " : Release LSPosed detected, consider using debug version");
+                try {
+                    for (Field f : cl.getClass().getDeclaredFields()) {
+                        f.setAccessible(true);
+                        log(TAG + "ClassLoader field: " + f);
+                        Object v = f.get(cl);
+                        List<File> nativeLibraryDirs = new ArrayList<>();
+                        if (v instanceof String apk) {
+                            log(TAG + " apk path from classloader " + apk);
+                            if (apkPath == null) {
+                                apkPath = apk;
+                            }
+                        } else if (v != null && nativeLibraryDirs.getClass().isAssignableFrom(v.getClass())) {
+                            //noinspection unchecked
+                            nativeLibraryDirs = (List<File>) v;
+                            log(TAG + " native lib dirs from classloader: " + nativeLibraryDirs);
+                            for (var dir : nativeLibraryDirs) {
+                                if (libDir == null && dir.getAbsolutePath().contains(ai.packageName)) {
+                                    libDir = dir.getAbsolutePath();
+                                }
+                            }
+                        }
+                    }
+                } catch (IllegalAccessException | NullPointerException | ClassCastException e) {
+                    log(TAG + " Exception", e);
+                }
+            }
+
             assert apkPath != null;
+            assert libDir != null;
 
             // And few other dirty hacks
             if (ai.sourceDir == null) {
-                log(TAG + " : Applied hack for sourceDir");
+                log(TAG + " : Applied hack for sourceDir: " + apkPath);
                 ai.sourceDir = apkPath;
             }
             if (ai.publicSourceDir == null) {
                 ai.publicSourceDir = apkPath;
-                log(TAG + " : Applied hack for publicSourceDir");
+                log(TAG + " : Applied hack for publicSourceDir: " + apkPath);
             }
             if (ai.dataDir == null) {
                 ai.dataDir = "/data/user/0/" + ai.packageName;
-                log(TAG + " : Applied hack for dataDir");
+                log(TAG + " : Applied hack for dataDir: " + ai.dataDir);
             }
             if (ai.nativeLibraryDir == null) {
                 ai.nativeLibraryDir = libDir;
-                log(TAG + " : Applied hack for nativeLibraryDir");
+                log(TAG + " : Applied hack for nativeLibraryDir: " + libDir);
             }
 
             var lac = cl.loadClass("android.app.LoadedApk");
@@ -1305,9 +1338,9 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " : Done!");
             return;
         }
-        log(TAG + " " + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
+        log(TAG + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
         for (Method m : clazz.getDeclaredMethods()) {
-            log(TAG + " " + " ".repeat(level + 1) + " : Found method " + m.getName());
+            log(TAG + " ".repeat(level + 1) + " : Found method " + m.getName());
         }
         recursivePrintMethods(clazz.getSuperclass(), level + 1);
     }
@@ -1322,9 +1355,9 @@ public class SettingsUIModule extends XposedModule {
             log(TAG + " : Done!");
             return;
         }
-        log(TAG + " " + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
+        log(TAG + " ".repeat(level) + " : Class " + clazz.getCanonicalName());
         for (Field f : clazz.getDeclaredFields()) {
-            log(TAG + " " + " ".repeat(level + 1) + " : Found field " + f.getName());
+            log(TAG + " ".repeat(level + 1) + " : Found field " + f.getName());
         }
         recursivePrintFields(clazz.getSuperclass(), level + 1);
     }
