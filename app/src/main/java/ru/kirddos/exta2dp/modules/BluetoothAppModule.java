@@ -15,6 +15,7 @@ import androidx.annotation.NonNull;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 import android.bluetooth.BluetoothCodecStatus;
+import android.bluetooth.BluetoothDevice;
 
 import java.lang.reflect.*;
 import java.util.ArrayList;
@@ -133,8 +134,9 @@ public class BluetoothAppModule extends XposedModule {
                         BluetoothCodecConfig thiz = (BluetoothCodecConfig) callback.getThisObject();
                         BluetoothCodecConfig other = (BluetoothCodecConfig) callback.getArgs()[0];
                         int type = thiz.getCodecType();
-                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5 || type == SOURCE_CODEC_TYPE_LC3PLUS_HR || type == SOURCE_CODEC_TYPE_FLAC) {
-                            if (thiz.getCodecSpecific1() != other.getCodecSpecific1() ||
+                        if (isCustomCodec(type) || isCustomCodec(other.getCodecType())) {
+                            if (thiz.getCodecType() != other.getCodecType() ||
+                                    thiz.getCodecSpecific1() != other.getCodecSpecific1() ||
                                     thiz.getCodecSpecific2() != other.getCodecSpecific2() ||
                                     thiz.getCodecSpecific3() != other.getCodecSpecific3() ||
                                     thiz.getCodecSpecific4() != other.getCodecSpecific4()) {
@@ -166,23 +168,85 @@ public class BluetoothAppModule extends XposedModule {
             Field mVendor = adapterServiceClass.getDeclaredField("mVendor");
             mVendor.setAccessible(true);
 
+            Method getCodecStatus = a2dpStateMachine.getDeclaredMethod("getCodecStatus");
+            getCodecStatus.setAccessible(true);
+
+
             Method processCodecConfigEvent = a2dpStateMachine.getDeclaredMethod("processCodecConfigEvent", BluetoothCodecStatus.class);
             processCodecConfigEvent.setAccessible(true);
 
             Method getAdapterService = adapterServiceClass.getDeclaredMethod("getAdapterService");
             getAdapterService.setAccessible(true);
 
+
+            Field mA2dpService = a2dpStateMachine.getDeclaredField("mA2dpService");
+            mA2dpService.setAccessible(true);
+
+            Field mDevice = a2dpStateMachine.getDeclaredField("mDevice");
+            mDevice.setAccessible(true);
+
+            Method codecConfigUpdated = mA2dpService.getType().getDeclaredMethod("codecConfigUpdated", BluetoothDevice.class, BluetoothCodecStatus.class, boolean.class);
+            codecConfigUpdated.setAccessible(true);
+
+            Method broadcastCodecConfig = mA2dpService.getType().getDeclaredMethod("broadcastCodecConfig", BluetoothDevice.class, BluetoothCodecStatus.class);
+
+            broadcastCodecConfig.setAccessible(true);
             hookBefore(processCodecConfigEvent, callback -> {
                 try {
+
+                    log(TAG + " in processCodecConfigEvent");
+
                     BluetoothCodecStatus newCodecStatus = (BluetoothCodecStatus) callback.getArgs()[0];
-                    int new_codec_type = newCodecStatus.getCodecConfig().getCodecType();
-                    if (new_codec_type >= SOURCE_CODEC_TYPE_LHDCV2) {
+                    BluetoothCodecConfig newConfig = newCodecStatus.getCodecConfig();
+                    BluetoothCodecStatus oldCodecStatus = (BluetoothCodecStatus) getCodecStatus.invoke(callback.getThisObject());
+
+                    int type = newConfig.getCodecType();
+                    if (isCustomCodec(type)) {
+
+                        boolean update;
+                        boolean broadcast = false;
+
+                        if (oldCodecStatus == null) {
+                            update = true;
+                        } else {
+                            BluetoothCodecConfig oldConfig = oldCodecStatus.getCodecConfig();
+                            /*update = oldConfig.getCodecType() != type ||
+                                    oldConfig.getSampleRate() != newConfig.getSampleRate() ||
+                                    oldConfig.getChannelMode() != newConfig.getChannelMode() ||
+                                    oldConfig.getBitsPerSample() != newConfig.getBitsPerSample() ||
+                                    oldConfig.getCodecSpecific1() != newConfig.getCodecSpecific1() ||
+                                    oldConfig.getCodecSpecific2() != newConfig.getCodecSpecific2() ||
+                                    oldConfig.getCodecSpecific3() != newConfig.getCodecSpecific3() ||
+                                    oldConfig.getCodecSpecific4() != newConfig.getCodecSpecific4();
+                            */
+
+                            update = oldConfig.getCodecType() != type ||
+                                    oldConfig.getSampleRate() != newConfig.getSampleRate() ||
+                                    oldConfig.getChannelMode() != newConfig.getChannelMode() ||
+                                    oldConfig.getBitsPerSample() != newConfig.getBitsPerSample() ||
+                                    (type == SOURCE_CODEC_TYPE_LHDCV3 && oldConfig.getCodecSpecific3() != newConfig.getCodecSpecific3());
+
+                            broadcast = oldConfig.getCodecType() == type && oldConfig.getCodecSpecific1() != newConfig.getCodecSpecific1();
+                        }
+
                         Object adapterService = getAdapterService.invoke(null);
                         log(TAG + " processCodecConfigEvent: " + adapterService);
                         Object vendorObj = mVendor.get(adapterService);
                         boolean save = splitA2dpEnabled.getBoolean(vendorObj);
                         log(TAG + " processCodecConfigEvent: splitA2dpEnabled = " + save);
                         splitA2dpEnabled.set(vendorObj, false);
+
+                        BluetoothDevice device = (BluetoothDevice) mDevice.get(callback.getThisObject());
+
+                        log(TAG + " should invoke codecConfigUpdated: " + update);
+                        if (update) {
+                            codecConfigUpdated.invoke(mA2dpService.get(callback.getThisObject()),device, newCodecStatus, false);
+                        }
+                        log(TAG + " should invoke broadcastCodecConfig: " + broadcast);
+                        if (broadcast) {
+                            broadcastCodecConfig.invoke(mA2dpService.get(callback.getThisObject()), device, newCodecStatus);
+                        }
+
                         log(TAG + " processCodecConfigEvent: splitA2dpEnabled = false, calling original method");
                         Method origin = (Method) callback.getMember();
                         invokeOrigin(origin, callback.getThisObject(), newCodecStatus);
@@ -208,7 +272,7 @@ public class BluetoothAppModule extends XposedModule {
                     int pos = mCodecConfigPriorities.length;
 
                     if (pos >= 9) {
-                        log(TAG + " assignCodecConfigPriorities: Your device seems to have LHDC already, maybe we should handle it differently?");
+                        log(TAG + " assignCodecConfigPriorities: " +  Arrays.toString(mCodecConfigPriorities));
                         //return;
                     }
 
@@ -218,13 +282,17 @@ public class BluetoothAppModule extends XposedModule {
 
 
                     //int basePriority = res[pos - 1].getCodecPriority();
+                    int basePriority;
+                    try {
+                        basePriority = res[0].getCodecPriority();
 
-                    int basePriority = res[pos - 2].getCodecPriority();
-
-                    for (int i = 0; i < pos; i++) {
-                        if (basePriority < res[i].getCodecPriority()) {
-                            basePriority = res[i].getCodecPriority();
+                        for (int i = 0; i < pos; i++) {
+                            if (basePriority < res[i].getCodecPriority()) {
+                                basePriority = res[i].getCodecPriority();
+                            }
                         }
+                    } catch (Exception e) {
+                        basePriority = 9001;
                     }
 
                     //noinspection JavaReflectionMemberAccess

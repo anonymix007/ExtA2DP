@@ -75,6 +75,8 @@
         <item>32</item>
     </string-array>
 
+
+
     <!-- Summaries for Bluetooth Audio Codec Sample Rate selection preference. [CHAR LIMIT=50]-->
     <string-array name="bluetooth_a2dp_codec_sample_rate_summaries" >
         <item>Use System Selection (Default)</item>
@@ -180,6 +182,13 @@
     <string-array name="bluetooth_enable_a2dp_codec_lhdc_lossless_summaries" translatable="false" >
         <item>LHDC Lossless OFF</item>
         <item>LHDC Lossless ON</item>
+    </string-array>
+
+    <string-array name="bluetooth_a2dp_codec_ldac_playback_quality_summaries">
+        <item>990/909 kbps</item>
+        <item>660/606 kbps</item>
+        <item>330/303 kbps</item>
+        <item>Adaptive Bit Rate</item>
     </string-array>
 
 

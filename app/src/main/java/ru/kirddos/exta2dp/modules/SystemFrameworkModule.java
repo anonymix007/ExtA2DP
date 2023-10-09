@@ -100,7 +100,7 @@ public class SystemFrameworkModule extends XposedModule {
         }
     }
 
-
+    /*
     @SuppressWarnings("ConstantConditions")
     @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi", "PrivateApi"})
     @Override
@@ -124,10 +124,8 @@ public class SystemFrameworkModule extends XposedModule {
                 try {
                     int btCodec = (int) callback.getArgs()[0];
 
-                    log(TAG + " bluetoothCodecToAudioFormat: " + btCodec + "->" + (btCodec >= SOURCE_CODEC_TYPE_LHDCV2 ? "AUDIO_FORMAT_LHDC" : "default"));
-
                     if (btCodec == SOURCE_CODEC_TYPE_LHDCV2 || btCodec == SOURCE_CODEC_TYPE_LHDCV3 || btCodec == SOURCE_CODEC_TYPE_LHDCV5) {
-                        callback.returnAndSkip(AUDIO_FORMAT_LHDC);
+                        callback.returnAndSkip(AUDIO_FORMAT_FLAC);
                     } else if (btCodec == SOURCE_CODEC_TYPE_LC3PLUS_HR) {
                         callback.returnAndSkip(AUDIO_FORMAT_LC3);
                     } else if (btCodec == SOURCE_CODEC_TYPE_FLAC) {
@@ -144,7 +142,7 @@ public class SystemFrameworkModule extends XposedModule {
                 try {
                     int audioFormat = (int) callback.getArgs()[0];
                     if (audioFormat == AUDIO_FORMAT_LHDC) {
-                        callback.returnAndSkip(SOURCE_CODEC_TYPE_LHDCV3);
+                        //callback.returnAndSkip(SOURCE_CODEC_TYPE_LHDCV3);
                     } else if (audioFormat == AUDIO_FORMAT_LC3) {
                         callback.returnAndSkip(SOURCE_CODEC_TYPE_LC3PLUS_HR);
                     } else if (audioFormat == AUDIO_FORMAT_FLAC) {
@@ -159,7 +157,5 @@ public class SystemFrameworkModule extends XposedModule {
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             log(TAG + " Exception: ", e);
         }
-    }
-
-
+    }*/
 }

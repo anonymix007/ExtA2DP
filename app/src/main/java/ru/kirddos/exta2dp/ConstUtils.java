@@ -1,5 +1,9 @@
 package ru.kirddos.exta2dp;
 
+import android.bluetooth.BluetoothCodecConfig;
+
+import org.lsposed.hiddenapibypass.HiddenApiBypass;
+
 public class ConstUtils {
 
     //public static final int SOURCE_QVA_CODEC_TYPE_MAX_EXTA2DP = 14;
@@ -17,19 +21,15 @@ public class ConstUtils {
     public static final int SOURCE_CODEC_TYPE_LC3PLUS_HR = SOURCE_QVA_CODEC_TYPE_MAX + 4;
     public static final int SOURCE_CODEC_TYPE_FLAC = SOURCE_QVA_CODEC_TYPE_MAX + 5;
 
-    public static final int SOURCE_CODEC_TYPE_OPUS = SourceCodecType.getIdByName("OPUS", -1);
-
-
+    public static final int SOURCE_CODEC_TYPE_OPUS = SourceCodecType.getIdByName("OPUS");
 
     public static final int SOURCE_CODEC_TYPE_APTX_TWSP = SourceCodecType.getIdByName("APTX_TWSP");
     public static final int SOURCE_CODEC_TYPE_APTX_ADAPTIVE = SourceCodecType.getIdByName("APTX_ADAPTIVE");
 
-    public static final int AUDIO_FORMAT_LHDC = 0x28000000;
+    //public static final int AUDIO_FORMAT_LHDC = 0x28000000;
     //public static final int AUDIO_FORMAT_LHDC_LL = 0x29000000;
-
-    public static final int AUDIO_FORMAT_FLAC = 0x1B000000;
-    public static final int AUDIO_FORMAT_LC3 = 0x2B000000;
-
+    //public static final int AUDIO_FORMAT_FLAC = 0x1B000000;
+    //public static final int AUDIO_FORMAT_LC3 = 0x2B000000;
 
     public static final int FLAC_STEREO_MONO_MASK = 0xF;
     public static final int FLAC_STEREO = 0x2;
@@ -46,6 +46,15 @@ public class ConstUtils {
     public static final int LHDC_QUALITY_DEFAULT_MAX_INDEX = (9 - lhdc_quality_index_adjust_offset); //0~9
 
 
+    public static final int A2DP_LHDC_JAS_ENABLED = 0x1;
+    public static final int A2DP_LHDC_AR_ENABLED = 0x2;
+    public static final int A2DP_LHDC_META_ENABLED = 0x4;
+    public static final int A2DP_LHDC_LLAC_ENABLED = 0x8;
+    public static final int A2DP_LHDC_MBR_ENABLED = 0x10;
+    public static final int A2DP_LHDC_LARC_ENABLED = 0x20;
+    public static final int A2DP_LHDC_V4_ENABLED = 0x40;
+
+
     public static String getCustomCodecName(int type) {
         if (type == SOURCE_CODEC_TYPE_LHDCV2) {
             return "LHDC V2";
@@ -60,6 +69,25 @@ public class ConstUtils {
         } else {
             return null;
         }
+    }
+    public static String getCodecName(int type) {
+        return (String) HiddenApiBypass.invoke(BluetoothCodecConfig.class, null, "getCodecName", type);
+    }
+    public static String getCodecName(BluetoothCodecConfig config) {
+        return getCodecName(config.getCodecType());
+    }
+
+    public static boolean isCustomCodec(int type) {
+        return isLHDC(type) ||
+               type == SOURCE_CODEC_TYPE_LC3PLUS_HR ||
+               type == SOURCE_CODEC_TYPE_FLAC;
+
+    }
+
+    public static boolean isLHDC(int type) {
+        return type == SOURCE_CODEC_TYPE_LHDCV2 ||
+               type == SOURCE_CODEC_TYPE_LHDCV3 ||
+               type == SOURCE_CODEC_TYPE_LHDCV5;
     }
 
 }

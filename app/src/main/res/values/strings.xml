@@ -25,4 +25,20 @@
     <string name="bluetooth_enable_a2dp_codec_lhdc_lossless_dialog_title">Select Bluetooth Audio LHDC Codec:\u000ALossless Audio</string>
     <string name="bluetooth_select_a2dp_codec_type_help_info">Gray-out means not supported by phone or headset</string>
     <string name="bluetooth_select_a2dp_codec_streaming_label">Streaming: %1$s</string>
+    <string name="device_name">Device Name</string>
+    <string name="current_codec">Current Codec</string>
+    <string name="quality">Quality</string>
+    <string name="device_mac">MAC Address</string>
+    <string name="select_codec">Select Codec:</string>
+    <string name="select_sample_rate">Select Sample Rate:</string>
+    <string name="select_bits_per_sample">Select Bits Per Sample:</string>
+    <string name="select_channel_mode">Select Channel Mode:</string>
+    <string name="connect_sink">Please connect A2DP sink device</string>
+    <string name="select_bitrate">Select Bitrate:</string>
+    <string name="save">Save</string>
+    <string name="generate_companion">Generate Magisk companion module</string>
+    <string name="change_priorities">Set default codec priorities</string>
+    <string name="ldac_params">Set default LDAC params</string>
+    <string name="lhdc_params">Set default LHDC params</string>
+    <string name="lc3plus_params">Set default LC3plus HR params</string>
 </resources>

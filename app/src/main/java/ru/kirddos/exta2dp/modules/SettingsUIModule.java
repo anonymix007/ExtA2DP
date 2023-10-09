@@ -119,10 +119,11 @@ public class SettingsUIModule extends XposedModule {
                 }
                 Field nativeLibraryDirsField = cl.getClass().getDeclaredField("nativeLibraryDirs");
                 nativeLibraryDirsField.setAccessible(true);
-                //noinspection unchecked
+
                 List<File> nativeLibraryDirs = new ArrayList<>();
                 Object v = nativeLibraryDirsField.get(cl);
                 if (v != null && nativeLibraryDirs.getClass().isAssignableFrom(v.getClass())) {
+                    //noinspection unchecked
                     nativeLibraryDirs = (List<File>) v;
                     log(TAG + " native lib dirs from classloader: " + nativeLibraryDirs);
                     for (var dir : nativeLibraryDirs) {
@@ -366,9 +367,6 @@ public class SettingsUIModule extends XposedModule {
                         callback.returnAndSkip(null);
                         return null;
                     }
-                    if (codecStatus.getCodecConfig().getCodecType() >= SOURCE_CODEC_TYPE_LHDCV2) {
-                        Log.d(TAG, "LHDC/LC3plus/FLAC codec type");
-                    }
                     callback.returnAndSkip(codecStatus.getCodecConfig());
                 } catch (IllegalAccessException | InvocationTargetException e) {
                     log(TAG + " abstractBtDialogPrefController: ", e);
@@ -610,6 +608,7 @@ public class SettingsUIModule extends XposedModule {
 
             hookBefore(writeConfigurationValues, callback -> {
                 try {
+                    //TODO: maybe we should have separate LHDC V3, V4 and LLAC menu options?
                     int index = (int) callback.getArgs()[0];
                     log(TAG + " Hooked BluetoothCodecDialogPreferenceController.writeConfigurationValues: type " + index);
                     int type;
@@ -966,13 +965,13 @@ public class SettingsUIModule extends XposedModule {
                         } else {
                             codecSpecific1Value = LHDC_QUALITY_DEFAULT_MAGIC | LHDC_QUALITY_DEFAULT_INDEX;
                         }
-                        if (type != SOURCE_CODEC_TYPE_LHDCV2 && type != SOURCE_CODEC_TYPE_LHDCV3 && type != SOURCE_CODEC_TYPE_LHDCV5) {
+                        if (!isLHDC(type)) {
+                            return null;
                             // Assume LHDC V3
                             // This probably needs a better fix, but here we are
-                            log(TAG + " writeConfigurationValues: Set codec type to LHDC V3");
-                            type = SOURCE_CODEC_TYPE_LHDCV3;
+                            //log(TAG + " writeConfigurationValues: Set codec type to LHDC V3");
+                            //type = SOURCE_CODEC_TYPE_LHDCV3;
                         }
-
                         setCodecType.invoke(mBluetoothA2dpConfigStore.get(callback.getThisObject()), type);
                         setCodecSpecific1Value.invoke(mBluetoothA2dpConfigStore.get(callback.getThisObject()), codecSpecific1Value);
                         callback.returnAndSkip(null);
@@ -1013,11 +1012,12 @@ public class SettingsUIModule extends XposedModule {
                                         selectableIndex.add(i);
                                     }
                                 }
-                            }
-                            if (type == SOURCE_CODEC_TYPE_LHDCV5) {
+                            } else if (type == SOURCE_CODEC_TYPE_LHDCV5) {
                                 // All items are available for LHDC V5.
                                 for (int i = 0; i <= LHDC_QUALITY_DEFAULT_MAX_INDEX; i++) {
-                                    selectableIndex.add(i);
+                                    if (currentConfig.getSampleRate() >= BluetoothCodecConfig.SAMPLE_RATE_96000 || i != (8 - lhdc_quality_index_adjust_offset)) {
+                                        selectableIndex.add(i);
+                                    }
                                 }
                             }
                         }
@@ -1077,7 +1077,7 @@ public class SettingsUIModule extends XposedModule {
                     if (currentConfig != null) {
                         int type = currentConfig.getCodecType();
                         log(TAG + " updateState: Codec type " + type + " (" + getCustomCodecName(type) + ")");
-                        if (type == SOURCE_CODEC_TYPE_LHDCV2 || type == SOURCE_CODEC_TYPE_LHDCV3 || type == SOURCE_CODEC_TYPE_LHDCV5) {
+                        if (isLHDC(type)) {
                             setEnabled.invoke(preference, true);
                             refreshSummary.invoke(callback.getThisObject(), preference);
                             //setSummary.invoke(preference, getResources().getString(R.string.bluetooth_select_a2dp_codec_lhdc_playback_quality));
@@ -1108,16 +1108,16 @@ public class SettingsUIModule extends XposedModule {
                             callback.getArgs()[0] = 1003;
                         }
                         return null;
+                    } else if (key.contains("bluetooth_select_a2dp_lhdc_playback_quality")) {
+                        log(TAG + " in LHDC controller: convertCfgToBtnIndex: " + config);
+                        int index = config;
+                        if ((config & LHDC_QUALITY_DEFAULT_TAG) != LHDC_QUALITY_DEFAULT_MAGIC) {
+                            index = 0;
+                        } else {
+                            index &= 0xff;
+                        }
+                        callback.returnAndSkip(index);
                     }
-
-                    log(TAG + " in LHDC controller: convertCfgToBtnIndex");
-                    int index = config;
-                    if ((config & LHDC_QUALITY_DEFAULT_TAG) != LHDC_QUALITY_DEFAULT_MAGIC) {
-                        index = 0;
-                    } else {
-                        index &= 0xff;
-                    }
-                    callback.returnAndSkip(index);
                 } catch (IllegalAccessException | IllegalArgumentException |
                          InvocationTargetException | NullPointerException |
                          NoSuchMethodException e) {
@@ -1283,9 +1283,7 @@ public class SettingsUIModule extends XposedModule {
                             final BluetoothCodecConfig currentConfig = (BluetoothCodecConfig) getCurrentCodecConfig.invoke(callback.getThisObject());
                             if (currentConfig != null) {
                                 int type = currentConfig.getCodecType();
-                                if (type != SOURCE_CODEC_TYPE_LHDCV2 &&
-                                        type != SOURCE_CODEC_TYPE_LHDCV3 &&
-                                        type != SOURCE_CODEC_TYPE_LHDCV5) {
+                                if (!isLHDC(type)) {
                                     return;
                                 }
                             }

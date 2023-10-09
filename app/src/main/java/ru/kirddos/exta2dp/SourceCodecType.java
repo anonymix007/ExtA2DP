@@ -87,7 +87,7 @@ public class SourceCodecType implements Comparable<SourceCodecType> {
     }
 
     public static int getIdByName(String name) {
-        return getIdByName(name, 0);
+        return getIdByName(name, -1);
     }
 
     private static boolean isPublicStaticFinal(int mod) {
