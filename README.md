@@ -22,6 +22,13 @@ Relatively fresh Snapdragon SoC and CLO ROM.
 As a rule of thumb: if aptX Adaptive is present, it'll probably work (though for the best experience 6/7/8 Gen 1 or newer are recommended)
 If you're using older device, you'll most likely need a custom Magisk companion module. See examples [here](https://github.com/anonymix007/ExtA2DP/issues/4#issuecomment-1694643330) and [here](https://github.com/anonymix007/ExtA2DP/issues/2#issuecomment-1646835100) in addition to one provided on the release page.
 
+### Logs
+1. Disable Bluetooth
+2. Force stop Bluetooth app in LSPosed
+3. `adb logcat -c`
+4. `adb logcat > logs.txt`
+5. Enable Bluetooth and reproduce
+
 #### TODO
 - [x] UI in com.android.settings
 - [x] Logic in com.android.bluetooth
