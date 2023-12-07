@@ -1,5 +1,6 @@
 package ru.kirddos.exta2dp;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothCodecConfig;
 
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
@@ -25,6 +26,31 @@ public class ConstUtils {
 
     public static final int SOURCE_CODEC_TYPE_APTX_TWSP = SourceCodecType.getIdByName("APTX_TWSP");
     public static final int SOURCE_CODEC_TYPE_APTX_ADAPTIVE = SourceCodecType.getIdByName("APTX_ADAPTIVE");
+
+
+    @SuppressLint("NewApi")
+    public static final int[] CODEC_IDS = {
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_AAC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX_HD,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LDAC,
+            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LC3,
+            SOURCE_CODEC_TYPE_OPUS,
+            SOURCE_CODEC_TYPE_APTX_ADAPTIVE,
+            SOURCE_CODEC_TYPE_APTX_TWSP,
+            SOURCE_CODEC_TYPE_LHDCV3,
+            SOURCE_CODEC_TYPE_LHDCV2,
+            SOURCE_CODEC_TYPE_LHDCV5,
+            SOURCE_CODEC_TYPE_LC3PLUS_HR,
+            SOURCE_CODEC_TYPE_FLAC
+    };
+
+    public static final String[] CODEC_NAMES = {
+            "SBC", "AAC", "aptX", "aptX HD", "LDAC", "LC3",
+            "Opus", "aptX Adaptive", "aptX TWSP", "LHDC V3",
+            "LHDC V2", "LHDC V5", "LC3plus HR", "FLAC"
+    };
 
     //public static final int AUDIO_FORMAT_LHDC = 0x28000000;
     //public static final int AUDIO_FORMAT_LHDC_LL = 0x29000000;

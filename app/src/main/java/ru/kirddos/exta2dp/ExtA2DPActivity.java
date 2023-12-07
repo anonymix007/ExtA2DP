@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import android.content.SharedPreferences;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 
@@ -40,6 +41,9 @@ import com.google.android.material.chip.ChipGroup;
 
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
+import io.github.libxposed.service.XposedService;
+import io.github.libxposed.service.XposedServiceHelper;
+
 public class ExtA2DPActivity extends Activity {
 
     enum State {
@@ -71,6 +75,7 @@ public class ExtA2DPActivity extends Activity {
     private static final String TAG = "ExtA2DPActivity";
     public static final String ACTION_CODEC_CONFIG_CHANGED = "android.bluetooth.a2dp.profile.action.CODEC_CONFIG_CHANGED";
     public static final String ACTIVE_DEVICE_CHANGED = "android.bluetooth.a2dp.profile.action.ACTIVE_DEVICE_CHANGED";
+    XposedService xposed;
     BluetoothCodecConfig currentConfig;
     List<BluetoothCodecConfig> localCapabilities;
     List<BluetoothCodecConfig> selectableCapabilities;
@@ -128,11 +133,39 @@ public class ExtA2DPActivity extends Activity {
         }
     };
 
+
+    private final XposedServiceHelper.OnServiceListener xposedListener = new XposedServiceHelper.OnServiceListener() {
+        @Override
+        public void onServiceBind(@NonNull XposedService xposedService) {
+            xposed = xposedService;
+            Toast.makeText(ExtA2DPActivity.this, "Got XposedService: " + xposedService, Toast.LENGTH_LONG).show();
+        }
+
+        @Override
+        public void onServiceDied(@NonNull XposedService xposedService) {
+            xposed = null;
+        }
+    };
+
+    void savePrefs() {
+        if (xposed == null) {
+            Toast.makeText(this, "XposedService is " + xposed, Toast.LENGTH_LONG).show();
+            return;
+        }
+        /*SharedPreferences priorities = xposed.getRemotePreferences("codec_priority");
+        var editor = priorities.edit();
+
+        for (int i = 0; i < CODEC_NAMES.length; i++) {
+            editor.putInt(CODEC_NAMES[i], 1000 * i + 1);
+        }
+        editor.apply();*/
+    }
+
     void setConfigs(BluetoothCodecStatus codecStatus) {
         currentConfig = codecStatus.getCodecConfig();
         localCapabilities = codecStatus.getCodecsLocalCapabilities();
         selectableCapabilities = codecStatus.getCodecsSelectableCapabilities();
-        Collections.sort(selectableCapabilities, Comparator.comparingInt(BluetoothCodecConfig::getCodecPriority));
+        selectableCapabilities.sort(Comparator.comparingInt(BluetoothCodecConfig::getCodecPriority));
     }
 
     void processA2dp() {
@@ -164,7 +197,11 @@ public class ExtA2DPActivity extends Activity {
         if (bluetoothDevice == null) {
             return;
         }
-        HiddenApiBypass.invoke(a2dp.getClass(), a2dp, "setCodecConfigPreference", bluetoothDevice, config);
+        try {
+            HiddenApiBypass.invoke(a2dp.getClass(), a2dp, "setCodecConfigPreference", bluetoothDevice, config);
+        } catch (Exception e) {
+            Log.e(TAG, "setCodecConfigPreference exception", e);
+        }
     }
 
 
@@ -173,7 +210,7 @@ public class ExtA2DPActivity extends Activity {
         try {
             //noinspection unchecked
             activeDevices = (List<BluetoothDevice>) HiddenApiBypass.invoke(BluetoothAdapter.class, adapter, "getActiveDevices", BluetoothProfile.A2DP);
-        } catch (ClassCastException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Exception", e);
         }
         device = (activeDevices.size() > 0) ? activeDevices.get(0) : null;
@@ -333,6 +370,7 @@ public class ExtA2DPActivity extends Activity {
             TextView companion = findViewById(R.id.generate_module);
             companion.setOnClickListener(v -> {
                 Toast.makeText(this, "Clicked " + v, Toast.LENGTH_SHORT).show();
+                savePrefs();
             });
         }
     }
@@ -513,13 +551,18 @@ public class ExtA2DPActivity extends Activity {
                 }
             }
 
+            int flacChannels = BluetoothCodecConfig.CHANNEL_MODE_STEREO;
+
             if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC) {
+                if ((currentConfig.getCodecSpecific1() & FLAC_STEREO_MONO_MASK) == FLAC_MONO) {
+                    flacChannels = BluetoothCodecConfig.CHANNEL_MODE_MONO;
+                }
                 if ((capability.getChannelMode() & modes[0]) == 0) {
-                    // It actually still supports it
+                    // FLAC actually supports it
                     Chip chip = (Chip) getLayoutInflater().inflate(R.layout.chip, null);
                     chip.setId(View.generateViewId());
                     chip.setText(names[0]);
-                    if (currentConfig.getChannelMode() == modes[0]) {
+                    if (flacChannels == BluetoothCodecConfig.CHANNEL_MODE_MONO) {
                         id = chip.getId();
                     }
                     chip.setTag(0);
@@ -532,7 +575,11 @@ public class ExtA2DPActivity extends Activity {
                     Chip chip = (Chip) getLayoutInflater().inflate(R.layout.chip, null);
                     chip.setId(View.generateViewId());
                     chip.setText(names[i]);
-                    if (currentConfig.getChannelMode() == modes[i]) {
+                    if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC) {
+                        if (flacChannels == modes[i]) {
+                            id = chip.getId();
+                        }
+                    } else if (currentConfig.getChannelMode() == modes[i]) {
                         id = chip.getId();
                     }
                     chip.setTag(i);
@@ -547,6 +594,7 @@ public class ExtA2DPActivity extends Activity {
             assert checkedIds.size() == 1;
             Chip chip = findViewById(checkedIds.get(0));
             int ch = (int) chip.getTag();
+            int ch2 = ch;
             if (currentConfig.getChannelMode() == modes[ch] && currentConfig.getCodecType() != SOURCE_CODEC_TYPE_FLAC) {
                 return;
             }
@@ -555,9 +603,11 @@ public class ExtA2DPActivity extends Activity {
             if (currentConfig.getCodecType() == SOURCE_CODEC_TYPE_FLAC) {
                 cs1 = flac[ch];
                 ch = 1;
+                if ((currentConfig.getCodecSpecific1() & FLAC_STEREO_MONO_MASK) == cs1) {
+                    return;
+                }
             }
-
-            Toast.makeText(this, "Changed to " + names[ch], Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Changed to " + names[ch2], Toast.LENGTH_SHORT).show();
             BluetoothCodecConfig newConfig = new BluetoothCodecConfig.Builder()
                     .setCodecType(currentConfig.getCodecType())
                     .setBitsPerSample(currentConfig.getBitsPerSample())
@@ -601,10 +651,14 @@ public class ExtA2DPActivity extends Activity {
         } else if (isLHDC(type)) {
             names = getResources().getStringArray(R.array.bluetooth_a2dp_codec_lhdc_playback_quality_summaries);
             for (int i = lhdc_quality_index_adjust_offset; i <= LHDC_QUALITY_DEFAULT_MAX_INDEX; i++) {
-                if (currentConfig.getSampleRate() < BluetoothCodecConfig.SAMPLE_RATE_96000 && i == (8 - lhdc_quality_index_adjust_offset)) {
+                if ((currentConfig.getSampleRate() < BluetoothCodecConfig.SAMPLE_RATE_96000 || currentConfig.getCodecType() != SOURCE_CODEC_TYPE_LHDCV5) && i == (8 - lhdc_quality_index_adjust_offset)) {
                     continue;
                 }
                 if (currentConfig.getSampleRate() >= BluetoothCodecConfig.SAMPLE_RATE_96000 && i < 3) {
+                    continue;
+                }
+
+                if (currentConfig.getSampleRate() >= BluetoothCodecConfig.SAMPLE_RATE_96000 && currentConfig.getCodecType() == SOURCE_CODEC_TYPE_LHDCV3 && i < 5) {
                     continue;
                 }
 
@@ -636,7 +690,7 @@ public class ExtA2DPActivity extends Activity {
             Chip chip = findViewById(checkedIds.get(0));
             int cs = (int) chip.getTag();
 
-            int idx = 0;
+            int idx;
             int curIdx;
             if (type == BluetoothCodecConfig.SOURCE_CODEC_TYPE_LDAC) {
                 idx = cs >= 1000 ? cs % 10 : 3;
@@ -693,13 +747,14 @@ public class ExtA2DPActivity extends Activity {
             if (SOURCE_CODEC_TYPE_APTX_ADAPTIVE == -1) {
                 Toast.makeText(this, "Current ROM is not compatible with ExtA2DP, it will not work!", Toast.LENGTH_LONG).show();
             }
-
         }
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_CODEC_CONFIG_CHANGED);
         filter.addAction(ACTIVE_DEVICE_CHANGED);
         registerReceiver(bluetoothA2dpReceiver, filter);
+
+        XposedServiceHelper.registerListener(xposedListener);
 
         BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
         adapter = bluetoothManager.getAdapter();
@@ -716,7 +771,6 @@ public class ExtA2DPActivity extends Activity {
                 if (tab.isInfo()) {
                     return true;
                 }
-
                 if (device != null) {
                     tab = State.Info;
                 } else {

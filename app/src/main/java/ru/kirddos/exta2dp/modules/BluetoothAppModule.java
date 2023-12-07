@@ -82,25 +82,6 @@ public class BluetoothAppModule extends XposedModule {
         }
     }
 
-
-    @SuppressLint("NewApi")
-    protected static final int[] CODEC_IDS = {
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC,
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_AAC,
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX,
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_APTX_HD,
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LDAC,
-            BluetoothCodecConfig.SOURCE_CODEC_TYPE_LC3,
-            SOURCE_CODEC_TYPE_OPUS,
-            SOURCE_CODEC_TYPE_APTX_ADAPTIVE,
-            SOURCE_CODEC_TYPE_APTX_TWSP,
-            SOURCE_CODEC_TYPE_LHDCV3,
-            SOURCE_CODEC_TYPE_LHDCV2,
-            SOURCE_CODEC_TYPE_LHDCV5,
-            SOURCE_CODEC_TYPE_LC3PLUS_HR,
-            SOURCE_CODEC_TYPE_FLAC
-    };
-
     @SuppressLint({"DiscouragedPrivateApi", "BlockedPrivateApi", "PrivateApi", "NewApi"})
     @SuppressWarnings({"NullableProblems", "ConstantConditions"})
     @Override
@@ -171,6 +152,8 @@ public class BluetoothAppModule extends XposedModule {
             Method getCodecStatus = a2dpStateMachine.getDeclaredMethod("getCodecStatus");
             getCodecStatus.setAccessible(true);
 
+            Field mA2dpOffloadEnabled = a2dpStateMachine.getDeclaredField("mA2dpOffloadEnabled");
+            mA2dpOffloadEnabled.setAccessible(true);
 
             Method processCodecConfigEvent = a2dpStateMachine.getDeclaredMethod("processCodecConfigEvent", BluetoothCodecStatus.class);
             processCodecConfigEvent.setAccessible(true);
@@ -247,6 +230,8 @@ public class BluetoothAppModule extends XposedModule {
                             broadcastCodecConfig.invoke(mA2dpService.get(callback.getThisObject()), device, newCodecStatus);
                         }
 
+                        log(TAG + " processCodecConfigEvent: mA2dpOffloadEnabled: " + mA2dpOffloadEnabled.get(callback.getThisObject()));
+
                         log(TAG + " processCodecConfigEvent: splitA2dpEnabled = false, calling original method");
                         Method origin = (Method) callback.getMember();
                         invokeOrigin(origin, callback.getThisObject(), newCodecStatus);
@@ -275,6 +260,7 @@ public class BluetoothAppModule extends XposedModule {
                         log(TAG + " assignCodecConfigPriorities: " +  Arrays.toString(mCodecConfigPriorities));
                         //return;
                     }
+
 
                     BluetoothCodecConfig[] res = new BluetoothCodecConfig[pos + 5]; // LHDC 2, 3/4, 5 and LC3plus HR/FLAC for now
 

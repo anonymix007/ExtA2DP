@@ -41,4 +41,5 @@
     <string name="ldac_params">Set default LDAC params</string>
     <string name="lhdc_params">Set default LHDC params</string>
     <string name="lc3plus_params">Set default LC3plus HR params</string>
+    <string name="select_frame_ms">Select Frame Size:</string>
 </resources>

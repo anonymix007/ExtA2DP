@@ -24,6 +24,7 @@
                 android:text="@string/generate_companion"
                 android:textAlignment="center"
                 android:textSize="10pt"
+                android:enabled="false"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintTop_toTopOf="parent"/>
         </androidx.constraintlayout.widget.ConstraintLayout>

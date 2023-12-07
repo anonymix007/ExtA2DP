@@ -11,7 +11,7 @@ android {
         minSdk 33
         targetSdk 34
         versionCode 224
-        versionName "2.2.4"
+        versionName "2.2.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -59,6 +59,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     compileOnly files('libs/api-release.aar')
     implementation files('libs/service-release.aar')
+    implementation files('libs/interface-release.aar')
     //implementation files('libs/helper-release.aar')
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
