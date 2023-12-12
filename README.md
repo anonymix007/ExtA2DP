@@ -11,10 +11,11 @@ Device vendor decided to only include basic CLO/AOSP codecs? This module solves 
 Works on Red Magic 8 Pro and on some other devices.
 
 ### Supported Versions
-Android 13 (maybe 14?)
+Android 13
+There will be a separate version for 14 due to incompatibility.
 
-LSPosed v1.9.1 (6998)
-**Debug version is REQUIRED for now**
+LSPosed v1.9.2 (7045)
+**Debug version is recommended**
 
 ### Hardware requirements
 Relatively fresh Snapdragon SoC and CLO ROM.

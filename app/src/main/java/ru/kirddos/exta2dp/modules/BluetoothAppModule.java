@@ -384,11 +384,11 @@ public class BluetoothAppModule extends XposedModule {
                     getSupportedProfiles.setAccessible(true);
                     int amountProfilesSupported = ((Class<?>[]) getSupportedProfiles.invoke(null)).length;
                     log(TAG + " processProfileServiceStateChanged: supported " + amountProfilesSupported);
-                    if (registered.size() == amountProfilesSupported) {
+                    if (Math.abs(registered.size() - amountProfilesSupported) <= 2) {
                         log(TAG + " processProfileServiceStateChanged: registered all supported profiles");
                         if (registered.size() == running.size()) {
                             log(TAG + " processProfileServiceStateChanged: running all supported profiles");
-                        } else if (registered.size() == running.size() + 5) {
+                        } else if (Math.abs(registered.size() - running.size()) <= 5) {
                             log(TAG + " HOOKED onProfileServiceStateChange() - All profile services started..");
 
 
@@ -447,7 +447,7 @@ public class BluetoothAppModule extends XposedModule {
                 return null;
             });
         } catch (ClassNotFoundException | NoSuchMethodException e) {//| NoSuchFieldException e) {
-            log(TAG + " Exception: ", e);
+            log(TAG + "hookServiceStart exception: ", e);
         }
     }
 

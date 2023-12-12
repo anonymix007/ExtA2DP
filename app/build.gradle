@@ -10,7 +10,7 @@ android {
         applicationId "ru.kirddos.exta2dp"
         minSdk 33
         targetSdk 34
-        versionCode 224
+        versionCode 225
         versionName "2.2.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
